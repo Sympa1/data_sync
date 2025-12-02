@@ -2,8 +2,6 @@
 Dieses Projekt ist daraus entstanden, dass ich Dateien -in meinem Fall Obsidian Notizen- Zwischen meinen verschieden Endgeräten synchronisieren möchte. Dafür muss ich verschiedene Betriebssysteme, Windows, Linux (Manjaro) und Android bedienen.
 Ich verspreche mir davon zusätzlich, einiges im Bereich DevOPS bzw. CI/CD, Mobile und Desktopapp zu lernen. Aber auch beim Datenbankdesign und bei der REST API, bin ich sicher viel hinzu zu lernen.
 Mein Hauptentwicklungssystem ist Manjaro (Linux), wobei die Android App aller voraussiecht nach unter Windows entwickelt werden wird.
-## Namensgebung
-**Sleipnir**, Odins acht beiniges Pferd aus der nordischen Mythologie, verkörpert die Projektziele: Seine Fähigkeit **zwischen den neun Welten zu reisen** spiegelt die Cross-Platform-Synchronisation verschiedener Geräte wider, seine **Treue zu Odin** steht für zuverlässige Datensicherheit und seine **legendäre Geschwindigkeit** für effiziente Synchronisation.
 ## Technische Details
 **Geplante Technologien/Frameworks:**
 - C# ASP .NET Core für das Backend
