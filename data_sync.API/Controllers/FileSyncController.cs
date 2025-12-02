@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
-using Sleipnir.API.DTOs;
-using Sleipnir.API.Services;
+using data_sync.API.DTOs;
+using data_sync.API.Services;
 
-namespace Sleipnir.API.Controllers;
+namespace data_sync.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]

@@ -1,6 +1,5 @@
-﻿
-Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sleipnir.API", "Sleipnir.API\Sleipnir.API.csproj", "{E4D51507-E45F-460C-A430-C7DCA09E316C}"
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "data_sync.API", "data_sync.API\data_sync.API.csproj", "{E4D51507-E45F-460C-A430-C7DCA09E316C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

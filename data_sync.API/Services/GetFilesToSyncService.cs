@@ -1,5 +1,5 @@
-using Sleipnir.API.DTOs;
-namespace Sleipnir.API.Services;
+using data_sync.API.DTOs;
+namespace data_sync.API.Services;
 
 public class GetFilesToSyncService
 {

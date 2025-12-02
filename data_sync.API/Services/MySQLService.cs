@@ -1,7 +1,7 @@
 using DotNetEnv; // --> NuGet-Paket
 using MySql.Data.MySqlClient; // --> NuGet-Paket
 
-namespace Sleipnir.API.Services;
+namespace data_sync.API.Services;
 
 public class MySQLService : IDisposable
 {

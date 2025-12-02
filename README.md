@@ -1,4 +1,4 @@
-# Project Sleipnir - Data Sync
+# Data Sync
 Dieses Projekt ist daraus entstanden, dass ich Dateien -in meinem Fall Obsidian Notizen- Zwischen meinen verschieden Endgeräten synchronisieren möchte. Dafür muss ich verschiedene Betriebssysteme, Windows, Linux (Manjaro) und Android bedienen.
 Ich verspreche mir davon zusätzlich, einiges im Bereich DevOPS bzw. CI/CD, Mobile und Desktopapp zu lernen. Aber auch beim Datenbankdesign und bei der REST API, bin ich sicher viel hinzu zu lernen.
 Mein Hauptentwicklungssystem ist Manjaro (Linux), wobei die Android App aller voraussiecht nach unter Windows entwickelt werden wird.
@@ -70,7 +70,7 @@ Mein Hauptentwicklungssystem ist Manjaro (Linux), wobei die Android App aller vo
 ~~Work in Progress.~~
 ## Verzeichnisstruktur
 ```
-project_sleipnir/
+data_sync/
 ├── Database/
 │   ├── MySQL/
 │   │   └── Schema.sql
@@ -87,25 +87,25 @@ project_sleipnir/
 │   ├── datenbank_design.md
 │   └── grundlegende_funktionen.md
 │
-├── Sleipnir.API/
-│   └── Sleipnir.API.csproj
+├── data_sync.API/
+│   └── data_sync.API.csproj
 |
-├── Sleipnir.CLI/
+├── data_sync.CLI/
 │   └── main.py
 |
-├── Sleipnir.GUI/
+├── data_sync.GUI/
 │   └── main.py    
 |
-├── Sleipnir.MAUI/
-│   └── Sleipnir.MAUI.csproj
+├── data_sync.MAUI/
+│   └── data_sync.MAUI.csproj
 │
 ├── Tests/
 │   └── Postman/
 |       ├── Manifest.json
-│       └── Sleipnir.postman_collection.json
+│       └── data_sync.postman_collection.json
 │
 ├── README.md
-└── Sleipnir.sln
+└── data_sync.sln
 ```
 ## ~~Installation~~
 ~~Work in Progress.~~

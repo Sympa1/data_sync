@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 
-namespace Sleipnir.API.Services;
+namespace data_sync.API.Services;
 
 /// <summary>
 /// Diese Klasse dient zum Schreiben von Logfiles.

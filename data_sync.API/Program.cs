@@ -1,4 +1,4 @@
-using Sleipnir.API.Services;
+using data_sync.API.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 

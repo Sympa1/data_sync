@@ -1,6 +1,0 @@
-@Sleipnir.API_HostAddress = http://localhost:5008
-
-GET {{Sleipnir.API_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###

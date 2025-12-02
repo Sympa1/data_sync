@@ -1,4 +1,4 @@
-namespace Sleipnir.API.DTOs;
+namespace data_sync.API.DTOs;
 
 /// <summary>
 /// DTO Modell für die zu synchronisierenden Dateien.
