@@ -18,7 +18,7 @@ CREATE TABLE file (
 
 CREATE TABLE sync_events(
     log_id INTEGER PRIMARY KEY AUTO_INCREMENT,
-    file_id INTEGER REFERENCES files(file_id),
+    file_id INTEGER REFERENCES file(file_id),
     -- Für später device_id INTEGER REFERENCES device(device_id),
     action ENUM('download', 'upload', 'conflict', 'delete', 'error'), -- Was wurde beim synchronisieren gemacht
     timestamp TEXT,
