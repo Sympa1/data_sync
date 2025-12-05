@@ -22,7 +22,9 @@ Außerdem ist "*ASP .NET Core*" von Microsoft sehr gut dokumentiert.
 
 Also werden ich als Backend eine *REST API* mit "*ASP .NET Core*" entwickeln, die ich dann nach Möglichkeit als *Docker Container* auf einen Ubuntu Webserver laufen lasse.
 
-In bisherigen eigenen Projekten habe ich Erfahrungen mit MySQL und SQLite gesammelt. Da auf dem Ubunu Server bereits MySQL läuft werde ich MySQL als Datenbanksystem für die REST API nutzen.
+**Datenbankzugriff:** Für den Datenbankzugriff nutze ich "*Entity Framework Core*" (EF Core) von Microsoft. EF Core ist ein moderner ORM (Object-Relational Mapper), der sich ideal für CRUD-Operationen eignet und die Datenzugriffs-Logik vereinfacht. Dies ermöglicht eine saubere Architektur mit automatischer Datenbankmigrationen und typstarker Abfrage-Unterstützung.
+
+In bisherigen eigenen Projekten habe ich Erfahrungen mit MySQL und SQLite gesammelt. Da auf dem Ubuntu Server bereits MySQL läuft werde ich MySQL als Datenbanksystem für die REST API nutzen.
 SQLite werde ich für die Frontend Anwendungen nutzen. Das begründet sich daraus, das ich bei meiner Recherche herausgefunden habe, dass es wohl gängig ist SQLite für Mobile Apps, als lokales Datenbanksystem zu nutzen.
 #### Frontend
 Da ich in Zukunft beruflich Berührungspunkte mit dem C# Framework MAUI haben werde, liegt die Entscheidung nahe, die Android App mit diesem Framework zu entwickeln.

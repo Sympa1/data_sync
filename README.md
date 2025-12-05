@@ -4,7 +4,7 @@ Ich verspreche mir davon zusätzlich, einiges im Bereich DevOPS bzw. CI/CD, Mobi
 Mein Hauptentwicklungssystem ist Manjaro (Linux), wobei die Android App aller voraussiecht nach unter Windows entwickelt werden wird.
 ## Technische Details
 **Geplante Technologien/Frameworks:**
-- C# ASP .NET Core für das Backend
+- C# ASP .NET Core mit Entity Framework Core für das Backend
 - C# MAUI für die Android- und nach Möglichkeit Windows App
 - Python /CustomTKinter/QT für das Manjaro (Linux) Frontend
 ## Roadmap
@@ -27,12 +27,13 @@ Mein Hauptentwicklungssystem ist Manjaro (Linux), wobei die Android App aller vo
     - MySQL Accounts (Admin & Client) anlegeb und Berechtigungen erteilen ✅
     - Create Table erstellen ✅
 - 0.0.2 Implementierung der REST API
+    - Entity Framework Core Setup und DbContext konfigurieren ⌛
     - Grundlegende REST API Endpunkte ⌛
-    - Erstellen der SQL Statements ⌛
+    - Entity Models erstellen ⌛
     - Postman Collection ⌛
     - Implementierung File Up- und Download 🕓
     - Implementierung Python CLI zum Testen 🕓
-    - Vorrübergehendes speichern der DB Logindaten in einem .env File 🕓
+    - Vorrübergehendes speichern der DB Logindaten in einem .env File ⌛
 - 0.0.3 Linux GUI
     - Lokale SQLite Datenbank 🕓
     - GUI Framework: CustomTkinter oder QT 🕓
@@ -86,7 +87,35 @@ data_sync/
 │   └── grundlegende_funktionen.md
 │
 ├── data_sync.API/
-│   └── data_sync.API.csproj
+│   ├── data_sync.API.csproj
+│   ├── appsettings.json
+│   ├── Program.cs
+│   │
+│   ├── Models/                      (Entity Models & Enums)
+│   │   ├── File.cs
+│   │   ├── SyncEvent.cs
+│   │   ├── FileState.cs
+│   │   └── SyncAction.cs
+│   │
+│   ├── Data/                        (DbContext & Migrations)
+│   │   ├── DataSyncContext.cs
+│   │   └── Migrations/              (auto-generiert via EF Core)
+│   │
+│   ├── Services/                    (Business Logic Services)
+│   │   ├── EnvLoadeService.cs
+│   │   ├── FileLogService.cs
+│   │   ├── GetFilesToSyncService.cs
+│   │   └── MySQLService.cs
+│   │
+│   ├── Controllers/                 (API Endpoints)
+│   │   └── FileSyncController.cs
+│   │
+│   ├── DTOs/                        (Data Transfer Objects)
+│   │   ├── FilesToSyncDto.cs
+│   │   └── ManifestDto.cs
+│   │
+│   └── Properties/
+│       └── launchSettings.json
 |
 ├── data_sync.CLI/
 │   └── main.py

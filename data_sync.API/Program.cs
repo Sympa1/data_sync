@@ -7,8 +7,7 @@ DotNetEnv.Env.Load();
 
 // Add services to the container.
 builder.Services.AddControllers();
-// Registriere MySQLService als Scoped (mit automatischem Dispose)
-builder.Services.AddScoped<MySQLService>();
+
 // Registriere GetFilesToSyncService als Scoped (mit automatischem Dispose)
 builder.Services.AddScoped<GetFilesToSyncService>();
 
