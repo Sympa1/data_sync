@@ -118,6 +118,10 @@ if (enableHttpsRedirection)
     app.UseHttpsRedirection();
 }
 
+// Statische Dateien für das Web-Dashboard bereitstellen (wwwroot)
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 // Authentifizierung VOR Autorisierung ausführen
 app.UseAuthentication();
 app.UseAuthorization();

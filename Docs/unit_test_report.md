@@ -1,6 +1,6 @@
 # Unit- & Core-Testbericht: data_sync
 
-- **Datum & Uhrzeit:** 2026-10-18 13:24:18 UTC
+- **Datum & Uhrzeit:** 2026-10-18 13:42:53 UTC
 - **Plattform:** Linux
 - **Geprüfte Komponenten:** Backend API (`data_sync.API`), Python CLI (`data_sync.CLI`)
 - **Gesamtergebnis:** `PASSED`
@@ -14,10 +14,11 @@
 | `data_sync.API (AuthService & PBKDF2 Hashing)` | `OK` | 7 | 7 | 0 | 0 |
 | `data_sync.API (Multi-User-Isolation & Three-Way-Merge)` | `OK` | 3 | 3 | 0 | 0 |
 | `data_sync.API (Path-Traversal & Traversal-Schutz)` | `OK` | 2 | 2 | 0 | 0 |
+| `data_sync.API (AdminController & Web-Dashboard Endpunkte)` | `OK` | 3 | 3 | 0 | 0 |
 | `data_sync.CLI (ApiClient URL-Auflösung & Header)` | `OK` | 2 | 2 | 0 | 0 |
 | `data_sync.CLI (ApiClient Login & Token-Handling)` | `OK` | 1 | 1 | 0 | 0 |
 | `data_sync.CLI (ConfigHandler JSON Read/Write)` | `OK` | 1 | 1 | 0 | 0 |
-| **Gesamt (`data_sync.API` & `data_sync.CLI`)** | **`OK`** | **16** | **16** | **0** | **0** |
+| **Gesamt (`data_sync.API` & `data_sync.CLI`)** | **`OK`** | **19** | **19** | **0** | **0** |
 
 ---
 
@@ -43,6 +44,11 @@ Befehl: `dotnet run --project data_sync.API/data_sync.API.csproj -- --test`
 #### Test Suite 3: Path-Traversal & Directory-Traversal Schutz
 - [x] Path-Traversal-Angriff mit `../` wird strikt blockiert (`ArgumentException`): `PASS`
 - [x] Path-Traversal-Angriff mit `..\` (Windows-Style) wird strikt blockiert (`ArgumentException`): `PASS`
+
+#### Test Suite 4: AdminController & Web-Dashboard Endpunkte
+- [x] Admin-Statistiken abrufen liefert gültige Kennzahlen (Benutzer, Dateien, Speicherverbrauch): `PASS`
+- [x] Admin kann Benutzerliste mit Speicherverbrauch abrufen: `PASS`
+- [x] Admin kann sich nicht selbst löschen (Selbstlöschungsschutz): `PASS`
 
 ---
 
@@ -81,4 +87,4 @@ Befehl: `python3 -m unittest discover -s data_sync.CLI/src -p "*test*.py" -v`
 ## 4. Fazit & Fail-Fast-Status
 
 - **Fail-Fast-Status:** `Alle Tests bestanden – Security-Audit läuft regulär weiter`
-- **Fazit:** Sämtliche 16 Unit- und Integrationstests über Backend (`data_sync.API`) und Python-CLI (`data_sync.CLI`) wurden erfolgreich mit Exit-Code 0 abgeschlossen. Es traten keinerlei Regressionen, Pfad-Traversal-Schwächen oder Konfigurationsfehler auf.
+- **Fazit:** Sämtliche 19 Unit- und Integrationstests über Backend (`data_sync.API`, 15 Tests) und Python-CLI (`data_sync.CLI`, 4 Tests) wurden erfolgreich mit Exit-Code 0 abgeschlossen. Es traten keinerlei Regressionen, Pfad-Traversal-Schwächen, Autorisierungsfehler oder Konfigurationsprobleme auf.

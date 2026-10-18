@@ -4,6 +4,37 @@ Chronologisches Entwicklungs- und Entscheidungsprotokoll gemäß Core Agent Harn
 
 ---
 
+## [2026-10-18 15:50] – Web Dashboard & Administrations-REST-API (Branch: feature/web-dashboard)
+
+- **Durchgeführte Änderungen:**
+  - **Branch-Isolation:** Eigenen Arbeitsbranch `feature/web-dashboard` (ausgehend von `rework-cli`) erstellt.
+  - **Admin-REST-API (`data_sync.API/Controllers/AdminController.cs` & `DTOs/AdminDtos.cs`):**
+    - Abgesichert mit `[Authorize(Roles = "Admin")]` über den bestehenden Token-Authentication-Handler.
+    - Endpunkte implementiert:
+      - `GET /api/admin/stats`: Liefert Systemkennzahlen (Benutzeranzahl, aktive Dateien, Speicherplatz, SQLite-DB-Dateigröße, Serverzeit).
+      - `GET /api/admin/users`: Benutzerliste mit individuellem Speicherverbrauch, Datei-Anzahl, Rollen und Anmeldezeitpunkten.
+      - `POST /api/admin/users`: Benutzeranlage mit Administrator-Berechtigungsoption.
+      - `DELETE /api/admin/users/{userId}`: Benutzerlöschung mit Kaskadenlöschung in SQLite und Bereinigung des lokalen Dateisystem-Vaults (`uploads/{userId}/`); Schutz gegen versehentliche Selbstlöschung des Administrators.
+      - `GET /api/admin/files`: Durchsuchbare Dateiübersicht mit Benutzerfilter.
+      - `GET /api/admin/logs`: Protokolleinsicht für System- und Fehlerereignisse (`FehlerProtokoll`).
+  - **Autarkes Web-Dashboard Frontend (`data_sync.API/wwwroot/`):**
+    - `index.html`: Responsives Dashboard mit Sidebar-Navigation (Übersicht, Benutzerverwaltung, Datei-Explorer, System-Logs) und Anmeldedialog.
+    - `css/styles.css`: Elegantes Dark-Mode Design (Anthrazit/Blau), CSS-Grid & Flexbox, Toast-Benachrichtigungen, Status-Badges; 100 % offline-fähig ohne externe CDNs oder Fonts.
+    - `js/app.js`: Vanilla ES6 JavaScript mit Session-Management via `localStorage`, XSS-Schutz durch `escapeHtml()`, asynchronen REST-Aufrufen, Benutzeranlage und -löschung.
+    - `Program.cs`: `app.UseDefaultFiles()` und `app.UseStaticFiles()` aktiviert.
+  - **Erweiterung der Test-Suite (`data_sync.API/Tests/ApiTestSuite.cs`):**
+    - Neue Test-Suite für `AdminController`: Statistiken abrufen, Benutzerübersicht mit Speicherverbrauch und Verweigerung von Selbstlöschung.
+    - **19/19 Tests bestanden** (15 Backend API + 4 Python CLI, Exit-Code: 0).
+  - **Security-Audit (`Docs/security_audit_report.md`):**
+    - Whitelist eingehalten (0 neue Bibliotheken), XSS-Schutz verifiziert, parametrisierte SQL-Queries, Status `PASSED`.
+- **Architekturentscheidungen (Warum):**
+  - **Zero-Dependency Frontend:** Das Dashboard wird direkt als statische Ressource durch die Kestrel-Instanz ausgeliefert. Es werden weder Node.js/NPM noch externe CDN-Bibliotheken benötigt, was maximale Privatsphäre und Zuverlässigkeit im Heimnetz garantiert.
+  - **Rollenbasierte Autorisierung:** Normale Benutzer haben über das Dashboard keinen Zugriff auf administrative Daten oder andere Benutzerkonten (`HTTP 403`).
+- **Offene Punkte / Nächste Schritte:**
+  - Anpassung der Flutter-App (`data_sync.FLUTTER`) an die neue REST-API mit Multi-User-Login, Datei-Isolierung und Administrations-Erweiterung.
+
+---
+
 ## [2026-10-18 15:30] – Python CLI Rework: REST-API Multi-User Authentifizierung & Token-Support (Branch: rework-cli)
 
 - **Durchgeführte Änderungen:**

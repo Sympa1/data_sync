@@ -228,6 +228,80 @@ public static class ApiTestSuite
             return false;
         });
 
+        // 4. AdminController & Web-Dashboard Tests
+        Console.WriteLine("\n[4] TEST SUITE: AdminController & Web-Dashboard Endpunkte");
+
+        await AssertAsync("Admin-Statistiken abrufen liefert gültige Kennzahlen", async () =>
+        {
+            var envMock = new MockWebHostEnvironment(AppContext.BaseDirectory);
+            var adminCtrl = new Controllers.AdminController(sqliteService, authService, envMock);
+            adminCtrl.ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+                    {
+                        new Claim(ClaimTypes.NameIdentifier, iBuffyUserId1.ToString()),
+                        new Claim(ClaimTypes.Name, sBuffyTestUser1),
+                        new Claim(ClaimTypes.Role, "Admin")
+                    }, "TestAuth"))
+                }
+            };
+
+            var statsResult = await adminCtrl.GetStats();
+            if (statsResult is OkObjectResult okObj && okObj.Value is AdminStatsDto statsDto)
+            {
+                return statsDto.TotalUsers >= 2;
+            }
+            return false;
+        });
+
+        await AssertAsync("Admin kann Benutzerliste mit Speicherverbrauch abrufen", async () =>
+        {
+            var envMock = new MockWebHostEnvironment(AppContext.BaseDirectory);
+            var adminCtrl = new Controllers.AdminController(sqliteService, authService, envMock);
+            adminCtrl.ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+                    {
+                        new Claim(ClaimTypes.NameIdentifier, iBuffyUserId1.ToString()),
+                        new Claim(ClaimTypes.Name, sBuffyTestUser1),
+                        new Claim(ClaimTypes.Role, "Admin")
+                    }, "TestAuth"))
+                }
+            };
+
+            var usersResult = await adminCtrl.GetUsers();
+            if (usersResult is OkObjectResult okObj && okObj.Value is List<AdminUserItemDto> usersList)
+            {
+                return usersList.Count >= 2;
+            }
+            return false;
+        });
+
+        await AssertAsync("Admin kann sich nicht selbst löschen", async () =>
+        {
+            var envMock = new MockWebHostEnvironment(AppContext.BaseDirectory);
+            var adminCtrl = new Controllers.AdminController(sqliteService, authService, envMock);
+            adminCtrl.ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+                    {
+                        new Claim(ClaimTypes.NameIdentifier, iBuffyUserId1.ToString()),
+                        new Claim(ClaimTypes.Name, sBuffyTestUser1),
+                        new Claim(ClaimTypes.Role, "Admin")
+                    }, "TestAuth"))
+                }
+            };
+
+            var deleteSelfResult = await adminCtrl.DeleteUser(iBuffyUserId1);
+            return deleteSelfResult is BadRequestObjectResult;
+        });
+
         Console.WriteLine("\n==============================================================================");
         Console.WriteLine($"TEST-ERGEBNIS: {iBuffyPassCount} Bestanden, {iBuffyFailCount} Fehlgeschlagen");
         Console.WriteLine("==============================================================================\n");
