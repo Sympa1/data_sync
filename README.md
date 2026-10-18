@@ -48,33 +48,20 @@ Das ist für mich wichtig, weil das Projekt nicht nur ein Werkzeug werden soll, 
     - Implementierung File Up- und Download ✅
 - 0.0.3 Linux CLI Tool
     - Lokale SQLite Datenbank ✅
-    - Vorübergehendes Speichern der DB Logindaten in einem `.env` File ✅
     - CLI Framework: argparse - Verschiedene Flags für unterschiedliche Funktionen ✅
-    - Lokale Berechnung des Dateihashes (SHA-256) ✅
-    - Implementierung API Client ✅
-    - Implementierung Logging in die MariaDB ✅
-    - Implementierung Logging in eine lokale Logdatei ✅
-    - Implementierung Init-Command ✅
-    - Implementierung Scan-Command ✅
-    - Implementierung Manifest-Command ✅
-    - Implementierung Upload-Command ✅
-    - Implementierung Download-Command ✅
-    - Implementierung Delete-Command ✅
-    - Implementierung Sync Command (Facade Pattern für alle bisherigen Aktionen) ✅
-    - Three-Way-Merge Logik (LastSyncState Tabelle) ✅
-    - Plattformübergreifende Hash-Kompatibilität (lowercase) ✅
-    - Intelligente Duplikat-Erkennung (gleichnamige Dateien in unterschiedlichen Ordnern) ✅
-    - Pfad-Normalisierung (Windows/Linux kompatibel) ✅
-    - Bidirektionale Löschungs-Synchronisation ✅
+    - Lokale SQLite Datenbank ✅
+    - Lokale Berechnung des Dateihashes ✅
+    - Kommunikation, inkl. Manifest, mit der REST API zum Synchronisieren ✅
     - Testing der REST API mit dem CLI Tool ✅
 - 0.0.4 Android / Linux / Windows App - GUI Framework Flutter
-    - Einarbeitung in Flutter ⌛
-    - Lokale SQLite Datenbank 🕓
-    - Lokale Berechnung des Dateihashes 🕓
-    - Kommunikation, inkl. Manifest, mit der REST API zum Synchronisieren 🕓
+    - Einarbeitung in Flutter ✅
+    - Lokale SQLite Datenbank ✅
+    - Lokale Berechnung des Dateihashes ✅
+    - Kommunikation, inkl. Manifest, mit der REST API zum Synchronisieren ✅
 - 0.1.0 Testing
-    - End to End Test 💭
+    - End to End Test ✅
 - 0.9.0 Release-Vorbereitung
+    - Containersinierung der Web API mit Docker ✅
     - Erstellen des automatischen Deployment 🕓
     - Sicheres Speichern von Datenbanklogin und Passwort 🕓
 - 1.0.0 Release und Deployment Version 1.0.0
