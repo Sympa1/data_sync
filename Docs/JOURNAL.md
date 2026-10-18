@@ -4,6 +4,43 @@ Chronologisches Entwicklungs- und Entscheidungsprotokoll gemäß Core Agent Harn
 
 ---
 
+## [2026-10-18 17:15] – Flutter App Rework: Multi-User-Authentifizierung & In-App-Admin-Bereich (Branch: rework-flutter)
+
+- **Durchgeführte Änderungen:**
+  - **Branch-Isolation:** Eigenen Arbeitsbranch `rework-flutter` (ausgehend von `feature/web-dashboard`) erstellt.
+  - **Settings & Persistenz (`models/settings.dart` & `services/settings_service.dart`):**
+    - `Settings`-Modell erweitert um: `authToken`, `username`, `userId`, `isAdmin`.
+    - `isAuthenticated`-Getter gehärtet gegen Null und Whitespace-Tokens (`authToken != null && authToken!.trim().isNotEmpty`).
+    - `SettingsService`: Methoden `saveAuthSession(token, username, userId, isAdmin)` und `clearAuthSession()` implementiert unter Verwendung parametrisierter SQLite-Queries.
+  - **REST API Client Service (`services/sync_api_service.dart`):**
+    - Endpunkte für Authentifizierung (`login`, `register`, `getMe`) implementiert.
+    - Endpunkte für Administration (`fetchAdminStats`, `fetchAdminUsers`, `createAdminUser`, `deleteAdminUser`, `fetchAdminLogs`) implementiert.
+    - Alle Sync-Methoden (`sendManifest`, `uploadFile`, `downloadFile`, `deleteRemoteFile`) um den optionalen `authToken`-Parameter erweitert und Übermittlung via `Authorization: Bearer <token>` sichergestellt.
+  - **Sync-Orchestrierung (`services/sync_service.dart`):**
+    - Authentifizierungsprüfung in `_loadSettings()` verankert: nicht angemeldete Benutzer erhalten eine verständliche Fehlermeldung mit Aufforderung zur Anmeldung in den Einstellungen.
+    - `authToken` wird an alle Sync-Phasen (`_runDownloads`, `_runUploads`, `_runDeletionSync`, `_processLocalDeletions`) durchgereicht.
+    - Einhaltung der Puffer- und Zählvariablen-Konventionen (`sBuffyRelPath`, `iBuffyDownloadCount`, `iBuffyUploadCount`, `iBuffyDeleteCount`, `iBuffyRemoteDeleteCount`).
+  - **In-App Administrations-Oberfläche (`screens/admin_page.dart`):**
+    - Vollständige Administrationsoberfläche für Administratoren direkt in der Flutter-App.
+    - Übersichtskarten für Systemkennzahlen (Benutzer, Dateien, Speicherplatz, DB-Größe).
+    - Benutzerverwaltung mit Benutzerliste, Speicherverbrauchsanzeige, Dialog zur Anlage neuer Benutzer (inkl. Passwort-Mindestlänge) und Bestätigungsdialog zur Löschung (Schutz gegen Selbstlöschung).
+    - System-Protokolleinsicht (Logs & Fehler).
+  - **Einstellungs- und Sync-UI (`screens/settings_page.dart` & `screens/sync_page.dart`):**
+    - `SettingsPage`: Benutzer-Konto-Sektion mit Status-Badges, Anmelde- und Registrierungsdialogen, Abmeldefunktion und Verknüpfung zur Server-Administration (nur für `isAdmin`).
+    - `SyncPage`: Statusanzeige aktualisiert (`Bereit (username)` bzw. `Login erforderlich`) und Hinweis-Banner bei unvollständiger Anmeldung.
+  - **Tests & Qualitätssicherung (`test/settings_test.dart`, `ApiTestSuite`, `test_cli.py`):**
+    - Neue Unit-Tests für das erweiterte Settings-Modell und Auth-Status (`test/settings_test.dart`).
+    - **22/22 Tests bestanden** (15 Backend API, 4 Python CLI, 3 Flutter/Dart Unit-Tests, Exit-Code: 0).
+  - **Security-Audit (`Docs/security_audit_report.md`):**
+    - Whitelist eingehalten (0 neue Pakete), isolierte SQLite-Ablage via `getApplicationSupportDirectory()`, sichere Header-Übermittlung, Status: `PASSED` (0 Befunde).
+- **Architekturentscheidungen (Warum):**
+  - **Native In-App Administration:** Ermöglicht es dem Serverbetreiber, Benutzer und Systemressourcen sowohl mobil über die Flutter-App als auch über das Desktop-Web-Dashboard ohne Drittanbieter-Tools zu steuern.
+  - **Offline-First & Token-Sicherheit:** Lokale Daten bleiben auch bei Abmeldung unberührt; Passwörter werden clientseitig nie gespeichert, sondern nur ephemere Bearer-Tokens.
+- **Offene Punkte / Nächste Schritte:**
+  - Nutzer-Review der Branches `rework-webapi`, `rework-cli`, `feature/web-dashboard` und `rework-flutter` für den manuellen Merge auf `main`.
+
+---
+
 ## [2026-10-18 15:50] – Web Dashboard & Administrations-REST-API (Branch: feature/web-dashboard)
 
 - **Durchgeführte Änderungen:**

@@ -58,7 +58,9 @@ class SyncService {
     final apiBaseUrl = settings.apiUrl!.trim();
     final allowInsecureTlsForLocalhost =
         settings.allowInsecureTlsForLocalhost;
+    final authToken = settings.authToken;
 
+    onLog('Angemeldet als: ${settings.username ?? "Benutzer"}');
     onLog('Nutze API: ${_syncApiService.describeBaseUrl(apiBaseUrl)}');
     if (allowInsecureTlsForLocalhost) {
       onLog('Lokale HTTPS-Zertifikate fuer localhost und LAN-Adressen sind aktiviert.');
@@ -90,6 +92,7 @@ class SyncService {
     final manifestResponse = await _syncApiService.sendManifest(
       apiBaseUrl: apiBaseUrl,
       manifest: manifest,
+      authToken: authToken,
       allowInsecureTlsForLocalhost: allowInsecureTlsForLocalhost,
     );
 
@@ -104,6 +107,7 @@ class SyncService {
         apiBaseUrl: apiBaseUrl,
         syncRootPath: syncRootPath,
         manifestResponse: manifestResponse,
+        authToken: authToken,
         allowInsecureTlsForLocalhost: allowInsecureTlsForLocalhost,
         onLog: onLog,
       );
@@ -115,6 +119,7 @@ class SyncService {
         syncRootPath: syncRootPath,
         manifestResponse: manifestResponse,
         currentFilesByPath: currentFilesByPath,
+        authToken: authToken,
         allowInsecureTlsForLocalhost: allowInsecureTlsForLocalhost,
         onLog: onLog,
       );
@@ -127,6 +132,7 @@ class SyncService {
         manifestResponse: manifestResponse,
         deletedEntries: deletedEntries,
         responseByPath: responseByPath,
+        authToken: authToken,
         allowInsecureTlsForLocalhost: allowInsecureTlsForLocalhost,
         onLog: onLog,
       );
@@ -147,6 +153,12 @@ class SyncService {
 
     if (apiUrl == null || apiUrl.isEmpty) {
       throw Exception('Es ist keine API-URL konfiguriert.');
+    }
+
+    if (!settings.isAuthenticated) {
+      throw Exception(
+        'Nicht angemeldet. Bitte melde dich zuerst in den Einstellungen an.',
+      );
     }
 
     await _ensureAndroidSharedStorageAccess(syncPath);
@@ -227,6 +239,7 @@ class SyncService {
     required String apiBaseUrl,
     required String syncRootPath,
     required List<SyncManifestResponse> manifestResponse,
+    String? authToken,
     required bool allowInsecureTlsForLocalhost,
     required void Function(String message) onLog,
   }) async {
@@ -240,13 +253,17 @@ class SyncService {
       return;
     }
 
+    int iBuffyDownloadCount = 0;
     for (final file in filesToDownload) {
-      onLog('Downloade ${file.relativePath} ...');
+      iBuffyDownloadCount++;
+      final sBuffyRelPath = file.relativePath;
+      onLog('[$iBuffyDownloadCount/${filesToDownload.length}] Downloade $sBuffyRelPath ...');
 
       await _syncApiService.downloadFile(
         apiBaseUrl: apiBaseUrl,
         syncRootPath: syncRootPath,
         file: file,
+        authToken: authToken,
         allowInsecureTlsForLocalhost: allowInsecureTlsForLocalhost,
       );
 
@@ -254,7 +271,7 @@ class SyncService {
         SyncStateEntry.fromManifestResponse(file),
       );
 
-      onLog('Download abgeschlossen: ${file.relativePath}');
+      onLog('Download abgeschlossen: $sBuffyRelPath');
     }
   }
 
@@ -264,6 +281,7 @@ class SyncService {
     required String syncRootPath,
     required List<SyncManifestResponse> manifestResponse,
     required Map<String, SyncFileDescriptor> currentFilesByPath,
+    String? authToken,
     required bool allowInsecureTlsForLocalhost,
     required void Function(String message) onLog,
   }) async {
@@ -277,20 +295,24 @@ class SyncService {
       return;
     }
 
+    int iBuffyUploadCount = 0;
     for (final file in filesToUpload) {
-      final localFile = currentFilesByPath[file.relativePath];
+      iBuffyUploadCount++;
+      final sBuffyRelPath = file.relativePath;
+      final localFile = currentFilesByPath[sBuffyRelPath];
 
       if (localFile == null) {
-        onLog('Upload uebersprungen: ${file.relativePath} wurde lokal nicht gefunden.');
+        onLog('Upload uebersprungen: $sBuffyRelPath wurde lokal nicht gefunden.');
         continue;
       }
 
-      onLog('Lade ${file.relativePath} hoch ...');
+      onLog('[$iBuffyUploadCount/${filesToUpload.length}] Lade $sBuffyRelPath hoch ...');
 
       await _syncApiService.uploadFile(
         apiBaseUrl: apiBaseUrl,
         syncRootPath: syncRootPath,
         file: localFile,
+        authToken: authToken,
         allowInsecureTlsForLocalhost: allowInsecureTlsForLocalhost,
       );
 
@@ -298,7 +320,7 @@ class SyncService {
         SyncStateEntry.fromDescriptor(localFile),
       );
 
-      onLog('Upload abgeschlossen: ${file.relativePath}');
+      onLog('Upload abgeschlossen: $sBuffyRelPath');
     }
   }
 
@@ -309,6 +331,7 @@ class SyncService {
     required List<SyncManifestResponse> manifestResponse,
     required List<SyncFileDescriptor> deletedEntries,
     required Map<String, SyncManifestResponse> responseByPath,
+    String? authToken,
     required bool allowInsecureTlsForLocalhost,
     required void Function(String message) onLog,
   }) async {
@@ -322,6 +345,7 @@ class SyncService {
       apiBaseUrl: apiBaseUrl,
       deletedEntries: deletedEntries,
       responseByPath: responseByPath,
+      authToken: authToken,
       allowInsecureTlsForLocalhost: allowInsecureTlsForLocalhost,
       onLog: onLog,
     );
@@ -343,17 +367,20 @@ class SyncService {
       return;
     }
 
+    int iBuffyDeleteCount = 0;
     for (final file in filesToDeleteLocally) {
-      final localFile = File(path.join(syncRootPath, file.relativePath));
+      iBuffyDeleteCount++;
+      final sBuffyRelPath = file.relativePath;
+      final localFile = File(path.join(syncRootPath, sBuffyRelPath));
 
       if (await localFile.exists()) {
         await localFile.delete();
-        onLog('Lokal geloescht: ${file.relativePath}');
+        onLog('[$iBuffyDeleteCount/${filesToDeleteLocally.length}] Lokal geloescht: $sBuffyRelPath');
       } else {
-        onLog('Bereits lokal entfernt: ${file.relativePath}');
+        onLog('[$iBuffyDeleteCount/${filesToDeleteLocally.length}] Bereits lokal entfernt: $sBuffyRelPath');
       }
 
-      await _syncStateService.deleteState(file.relativePath);
+      await _syncStateService.deleteState(sBuffyRelPath);
     }
   }
 
@@ -362,6 +389,7 @@ class SyncService {
     required String apiBaseUrl,
     required List<SyncFileDescriptor> deletedEntries,
     required Map<String, SyncManifestResponse> responseByPath,
+    String? authToken,
     required bool allowInsecureTlsForLocalhost,
     required void Function(String message) onLog,
   }) async {
@@ -370,32 +398,36 @@ class SyncService {
       return;
     }
 
+    int iBuffyRemoteDeleteCount = 0;
     for (final file in deletedEntries) {
-      final serverDecision = responseByPath[file.relativePath];
+      iBuffyRemoteDeleteCount++;
+      final sBuffyRelPath = file.relativePath;
+      final serverDecision = responseByPath[sBuffyRelPath];
 
       if (serverDecision?.toDownload == true) {
         onLog(
-          'Server-Loeschung uebersprungen: ${file.relativePath} wird erneut heruntergeladen.',
+          'Server-Loeschung uebersprungen: $sBuffyRelPath wird erneut heruntergeladen.',
         );
         continue;
       }
 
       if (serverDecision?.toDelete == true) {
-        await _syncStateService.deleteState(file.relativePath);
-        onLog('Server meldet Datei bereits als geloescht: ${file.relativePath}');
+        await _syncStateService.deleteState(sBuffyRelPath);
+        onLog('Server meldet Datei bereits als geloescht: $sBuffyRelPath');
         continue;
       }
 
-      onLog('Melde Loeschung an Server: ${file.relativePath}');
+      onLog('[$iBuffyRemoteDeleteCount/${deletedEntries.length}] Melde Loeschung an Server: $sBuffyRelPath');
 
       await _syncApiService.deleteRemoteFile(
         apiBaseUrl: apiBaseUrl,
-        relativePath: file.relativePath,
+        relativePath: sBuffyRelPath,
+        authToken: authToken,
         allowInsecureTlsForLocalhost: allowInsecureTlsForLocalhost,
       );
 
-      await _syncStateService.deleteState(file.relativePath);
-      onLog('Server-Loeschung bestaetigt: ${file.relativePath}');
+      await _syncStateService.deleteState(sBuffyRelPath);
+      onLog('Server-Loeschung bestaetigt: $sBuffyRelPath');
     }
   }
 }

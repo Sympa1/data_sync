@@ -1,34 +1,44 @@
-/// Speichert alle Sync-Einstellungen der App
-/// 
-/// Diese Klasse speichert die Konfiguration für die Datensynchronisation:
-/// - syncPath: Der lokale Pfad zum Verzeichnis
-/// - apiUrl: Die URL des Backend-Servers
-/// - allowInsecureTlsForLocalhost: Erlaubt lokale HTTPS-Zertifikate fuer Entwicklung und LAN
-///
-/// Die Klasse ist immutable (unveränderlich). Um Einstellungen zu ändern,
-/// muss ein neues Settings-Objekt erstellt werden.
+/// Speichert alle Sync- und Authentifizierungs-Einstellungen der App.
 class Settings {
-  final String? syncPath;       // ? bedeutet nullable (kann null sein)
+  final String? syncPath;
   final String? apiUrl;
   final bool allowInsecureTlsForLocalhost;
+  final String? authToken;
+  final String? username;
+  final int? userId;
+  final bool isAdmin;
 
-  /// Erstellt eine neue Settings-Instanz
-  ///
-  /// Parameter:
-  /// - [syncPath]: Optional. Der lokale Pfad zum Sync-Verzeichnis
-  /// - [apiUrl]: Optional. Die URL der REST API
-  /// - [allowInsecureTlsForLocalhost]: Optional. Erlaubt selbstsignierte lokale Zertifikate
-  ///
-  /// syncPath und apiUrl sind optional und können null sein.
   Settings({
     this.syncPath,
     this.apiUrl,
     this.allowInsecureTlsForLocalhost = false,
+    this.authToken,
+    this.username,
+    this.userId,
+    this.isAdmin = false,
   });
+
+  /// Prüft, ob der Benutzer aktuell an der REST-API angemeldet ist.
+  bool get isAuthenticated => authToken != null && authToken!.trim().isNotEmpty;
+
+  /// Erstellt eine Kopie mit optional überschriebenen Werten.
+  Settings copyWith({
+    String? syncPath,
+    String? apiUrl,
+    bool? allowInsecureTlsForLocalhost,
+    String? authToken,
+    String? username,
+    int? userId,
+    bool? isAdmin,
+  }) {
+    return Settings(
+      syncPath: syncPath ?? this.syncPath,
+      apiUrl: apiUrl ?? this.apiUrl,
+      allowInsecureTlsForLocalhost: allowInsecureTlsForLocalhost ?? this.allowInsecureTlsForLocalhost,
+      authToken: authToken ?? this.authToken,
+      username: username ?? this.username,
+      userId: userId ?? this.userId,
+      isAdmin: isAdmin ?? this.isAdmin,
+    );
+  }
 }
-
-
-/* Nutzung:
-Settings()  // Beide null
-Settings(syncPath: "/home/user")  // Nur syncPath gesetzt
-*/

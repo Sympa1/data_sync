@@ -21,6 +21,7 @@ class _SyncPageState extends State<SyncPage> {
   final SyncService _syncService = SyncService();
   final SettingsService _settingsService = SettingsService();
 
+  Settings? _currentSettings;
   List<String> _logs = const [
     '[INFO] App gestartet und bereit.',
     '[WAIT] Warte auf API-URL und Sync-Verzeichnis.',
@@ -63,10 +64,17 @@ class _SyncPageState extends State<SyncPage> {
         (settings.syncPath?.trim().isNotEmpty ?? false);
 
     setState(() {
+      _currentSettings = settings;
       _isConfigured = isConfigured;
-      _statusLabel = isConfigured ? 'Bereit' : 'Noch nicht eingerichtet';
+      _statusLabel = isConfigured
+          ? (settings.isAuthenticated
+              ? 'Bereit (${settings.username})'
+              : 'Login erforderlich')
+          : 'Noch nicht eingerichtet';
       _statusIcon = isConfigured
-          ? Icons.check_circle_outline
+          ? (settings.isAuthenticated
+              ? Icons.check_circle_outline
+              : Icons.lock_outline)
           : Icons.hourglass_bottom_rounded;
     });
   }
@@ -203,6 +211,33 @@ class _SyncPageState extends State<SyncPage> {
             ),
           ),
           const SizedBox(height: 20),
+          if (_currentSettings != null &&
+              !_currentSettings!.isAuthenticated &&
+              _isConfigured) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: colorScheme.errorContainer.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: colorScheme.onErrorContainer),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Nicht angemeldet: Bitte melde dich in den Einstellungen an, um zu synchronisieren.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onErrorContainer,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
           // Gruppiert die verfügbaren Sync-Aktionen.
           Text(
             'Aktionen',

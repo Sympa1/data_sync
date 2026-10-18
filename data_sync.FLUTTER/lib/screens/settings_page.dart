@@ -2,7 +2,9 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:data_sync_flutter/models/settings.dart';
+import 'package:data_sync_flutter/screens/admin_page.dart';
 import 'package:data_sync_flutter/services/settings_service.dart';
+import 'package:data_sync_flutter/services/sync_api_service.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -21,6 +23,8 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  final SyncApiService _syncApiService = SyncApiService();
+
   /// Die aktuellen Einstellungen der App
   ///
   /// Statt zwei separate Variablen zu haben (syncPath, apiUrl),
@@ -312,6 +316,338 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  /// Öffnet den Dialog zur Anmeldung mit Benutzername und Passwort.
+  Future<void> _showLoginDialog() async {
+    final sBuffyApiUrl = settings?.apiUrl?.trim();
+    if (sBuffyApiUrl == null || sBuffyApiUrl.isEmpty) {
+      _showMessage('Bitte hinterlege zuerst eine API-URL.', isError: true);
+      return;
+    }
+
+    final usernameController = TextEditingController();
+    final passwordController = TextEditingController();
+    bool isSubmitting = false;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Anmelden'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: usernameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Benutzername',
+                      prefixIcon: Icon(Icons.person_outline),
+                    ),
+                    autofocus: true,
+                    enabled: !isSubmitting,
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: passwordController,
+                    decoration: const InputDecoration(
+                      labelText: 'Passwort',
+                      prefixIcon: Icon(Icons.lock_outline),
+                    ),
+                    obscureText: true,
+                    enabled: !isSubmitting,
+                  ),
+                  if (isSubmitting) ...[
+                    const SizedBox(height: 16),
+                    const LinearProgressIndicator(),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Abbrechen'),
+                ),
+                FilledButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () async {
+                          final sBuffyUsername = usernameController.text.trim();
+                          final sBuffyPassword = passwordController.text;
+
+                          if (sBuffyUsername.isEmpty || sBuffyPassword.isEmpty) {
+                            _showMessage(
+                              'Bitte Benutzername und Passwort eingeben.',
+                              isError: true,
+                            );
+                            return;
+                          }
+
+                          setDialogState(() => isSubmitting = true);
+
+                          try {
+                            final loginResult = await _syncApiService.login(
+                              apiBaseUrl: sBuffyApiUrl,
+                              username: sBuffyUsername,
+                              password: sBuffyPassword,
+                              allowInsecureTlsForLocalhost:
+                                  settings?.allowInsecureTlsForLocalhost ?? false,
+                            );
+
+                            final sBuffyToken = loginResult['token'] as String;
+                            final userMap =
+                                loginResult['user'] as Map<String, dynamic>;
+                            final iBuffyUserId = userMap['id'] as int;
+                            final sBuffyReturnedUser =
+                                userMap['username'] as String;
+                            final bool bBuffyIsAdmin =
+                                userMap['isAdmin'] == true;
+
+                            await SettingsService().saveAuthSession(
+                              token: sBuffyToken,
+                              username: sBuffyReturnedUser,
+                              userId: iBuffyUserId,
+                              isAdmin: bBuffyIsAdmin,
+                            );
+
+                            if (dialogContext.mounted) {
+                              Navigator.of(dialogContext).pop();
+                            }
+
+                            await _loadSettings();
+                            if (mounted) {
+                              _showMessage(
+                                'Erfolgreich als $sBuffyReturnedUser angemeldet.',
+                              );
+                            }
+                          } catch (e) {
+                            setDialogState(() => isSubmitting = false);
+                            if (mounted) {
+                              _showMessage(
+                                'Anmeldung fehlgeschlagen: $e',
+                                isError: true,
+                              );
+                            }
+                          }
+                        },
+                  child: const Text('Anmelden'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// Öffnet den Dialog zur Registrierung eines neuen Benutzerkontos.
+  Future<void> _showRegisterDialog() async {
+    final sBuffyApiUrl = settings?.apiUrl?.trim();
+    if (sBuffyApiUrl == null || sBuffyApiUrl.isEmpty) {
+      _showMessage('Bitte hinterlege zuerst eine API-URL.', isError: true);
+      return;
+    }
+
+    final usernameController = TextEditingController();
+    final passwordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+    bool isSubmitting = false;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Konto erstellen'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: usernameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Benutzername (mind. 3 Zeichen)',
+                      prefixIcon: Icon(Icons.person_add_outlined),
+                    ),
+                    autofocus: true,
+                    enabled: !isSubmitting,
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: passwordController,
+                    decoration: const InputDecoration(
+                      labelText: 'Passwort (mind. 6 Zeichen)',
+                      prefixIcon: Icon(Icons.lock_outline),
+                    ),
+                    obscureText: true,
+                    enabled: !isSubmitting,
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: confirmPasswordController,
+                    decoration: const InputDecoration(
+                      labelText: 'Passwort wiederholen',
+                      prefixIcon: Icon(Icons.lock_reset_outlined),
+                    ),
+                    obscureText: true,
+                    enabled: !isSubmitting,
+                  ),
+                  if (isSubmitting) ...[
+                    const SizedBox(height: 16),
+                    const LinearProgressIndicator(),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Abbrechen'),
+                ),
+                FilledButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () async {
+                          final sBuffyUsername = usernameController.text.trim();
+                          final sBuffyPassword = passwordController.text;
+                          final sBuffyConfirm =
+                              confirmPasswordController.text;
+
+                          if (sBuffyUsername.length < 3) {
+                            _showMessage(
+                              'Benutzername muss mindestens 3 Zeichen lang sein.',
+                              isError: true,
+                            );
+                            return;
+                          }
+
+                          if (sBuffyPassword.length < 6) {
+                            _showMessage(
+                              'Passwort muss mindestens 6 Zeichen lang sein.',
+                              isError: true,
+                            );
+                            return;
+                          }
+
+                          if (sBuffyPassword != sBuffyConfirm) {
+                            _showMessage(
+                              'Passwörter stimmen nicht überein.',
+                              isError: true,
+                            );
+                            return;
+                          }
+
+                          setDialogState(() => isSubmitting = true);
+
+                          try {
+                            final regResult = await _syncApiService.register(
+                              apiBaseUrl: sBuffyApiUrl,
+                              username: sBuffyUsername,
+                              password: sBuffyPassword,
+                              allowInsecureTlsForLocalhost:
+                                  settings?.allowInsecureTlsForLocalhost ?? false,
+                            );
+
+                            final sBuffyToken = regResult['token'] as String;
+                            final userMap =
+                                regResult['user'] as Map<String, dynamic>;
+                            final iBuffyUserId = userMap['id'] as int;
+                            final sBuffyReturnedUser =
+                                userMap['username'] as String;
+                            final bool bBuffyIsAdmin =
+                                userMap['isAdmin'] == true;
+
+                            await SettingsService().saveAuthSession(
+                              token: sBuffyToken,
+                              username: sBuffyReturnedUser,
+                              userId: iBuffyUserId,
+                              isAdmin: bBuffyIsAdmin,
+                            );
+
+                            if (dialogContext.mounted) {
+                              Navigator.of(dialogContext).pop();
+                            }
+
+                            await _loadSettings();
+                            if (mounted) {
+                              _showMessage(
+                                'Konto erstellt und angemeldet als $sBuffyReturnedUser.',
+                              );
+                            }
+                          } catch (e) {
+                            setDialogState(() => isSubmitting = false);
+                            if (mounted) {
+                              _showMessage(
+                                'Registrierung fehlgeschlagen: $e',
+                                isError: true,
+                              );
+                            }
+                          }
+                        },
+                  child: const Text('Registrieren'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// Meldet das aktuelle Benutzerkonto ab und löscht die Sitzungsdaten.
+  Future<void> _logout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Abmelden'),
+        content: const Text(
+          'Möchtest du dich wirklich abmelden? Die lokalen Dateien bleiben erhalten.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Abmelden'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      await SettingsService().clearAuthSession();
+      await _loadSettings();
+      if (mounted) {
+        _showMessage('Erfolgreich abgemeldet.');
+      }
+    } catch (e) {
+      if (mounted) {
+        _showMessage('Abmelden fehlgeschlagen: $e', isError: true);
+      }
+    }
+  }
+
+  /// Öffnet die Administrations-Ansicht für Administratoren.
+  void _openAdminPage() {
+    if (settings == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => AdminPage(settings: settings!),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -430,6 +766,160 @@ class _SettingsPageState extends State<SettingsPage> {
           isLoading: _isLoading,
           onChanged: _toggleLocalhostCertificateOverride,
         ),
+        const SizedBox(height: 24),
+        Text(
+          'Benutzer-Konto',
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 12),
+        if (settings?.isAuthenticated == true) ...[
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: colorScheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Icon(
+                          Icons.account_circle_outlined,
+                          color: colorScheme.onPrimaryContainer,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              settings?.username ?? 'Benutzer',
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 4),
+                            _StatusChip(
+                              label: (settings?.isAdmin ?? false)
+                                  ? 'Administrator'
+                                  : 'Standardbenutzer',
+                              isComplete: true,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Benutzer-ID: ${settings?.userId ?? "-"}',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  OutlinedButton.icon(
+                    onPressed: _logout,
+                    icon: const Icon(Icons.logout_rounded, size: 18),
+                    label: const Text('Abmelden'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (settings?.isAdmin == true) ...[
+            const SizedBox(height: 12),
+            _SettingCard(
+              icon: Icons.admin_panel_settings_outlined,
+              title: 'Server-Administration',
+              value: 'Benutzer, Sync-Dateien und System-Logs verwalten',
+              description:
+                  'Als Administrator kannst du Statistiken einsehen, neue Benutzer anlegen und das System überwachen.',
+              actionLabel: 'Administration öffnen',
+              isComplete: true,
+              isLoading: _isLoading,
+              onTap: _openAdminPage,
+            ),
+          ],
+        ] else ...[
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Icon(
+                          Icons.lock_outline,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Nicht angemeldet',
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 4),
+                            const _StatusChip(
+                              label: 'Anmeldung erforderlich',
+                              isComplete: false,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    'Für die Synchronisation mit dem Server wird ein Benutzer-Token benötigt.',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton.tonal(
+                          onPressed: _isLoading ? null : _showLoginDialog,
+                          child: const Text('Anmelden'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: _isLoading ? null : _showRegisterDialog,
+                          child: const Text('Registrieren'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }

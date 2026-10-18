@@ -163,17 +163,53 @@ class SettingsService {
       final allowInsecureTlsForLocalhost =
           await getSetting('allowInsecureTlsForLocalhost');
 
+      // Lese Authentifizierungs-Daten aus der DB
+      final authToken = await getSetting('authToken');
+      final username = await getSetting('username');
+      final userIdStr = await getSetting('userId');
+      final isAdminStr = await getSetting('isAdmin');
+
+      int? userId;
+      if (userIdStr != null) {
+        userId = int.tryParse(userIdStr);
+      }
+
       // Erstelle ein Settings-Objekt mit den gelesenen Werten
       return Settings(
         syncPath: syncPath,
         apiUrl: apiUrl,
         allowInsecureTlsForLocalhost:
             allowInsecureTlsForLocalhost?.toLowerCase() == 'true',
+        authToken: authToken,
+        username: username,
+        userId: userId,
+        isAdmin: isAdminStr?.toLowerCase() == 'true',
       );
     } catch (e) {
       // Bei Fehler: Werfe Exception mit aussagekräftiger Meldung
       throw Exception('Fehler beim Laden aller Einstellungen: $e');
     }
+  }
+
+  /// Speichert die Authentifizierungs-Sitzung in der lokalen Datenbank
+  Future<void> saveAuthSession({
+    required String token,
+    required String username,
+    required int userId,
+    required bool isAdmin,
+  }) async {
+    await saveSetting('authToken', token);
+    await saveSetting('username', username);
+    await saveSetting('userId', userId.toString());
+    await saveSetting('isAdmin', isAdmin.toString());
+  }
+
+  /// Löscht die Authentifizierungs-Sitzung aus der lokalen Datenbank
+  Future<void> clearAuthSession() async {
+    await deleteSetting('authToken');
+    await deleteSetting('username');
+    await deleteSetting('userId');
+    await deleteSetting('isAdmin');
   }
 
   /// Löscht eine Einstellung aus der Datenbank

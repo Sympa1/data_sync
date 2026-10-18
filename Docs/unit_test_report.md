@@ -1,8 +1,8 @@
 # Unit- & Core-Testbericht: data_sync
 
-- **Datum & Uhrzeit:** 2026-10-18 13:42:53 UTC
+- **Datum & Uhrzeit:** 2026-10-18 15:18:40 UTC
 - **Plattform:** Linux
-- **Geprüfte Komponenten:** Backend API (`data_sync.API`), Python CLI (`data_sync.CLI`)
+- **Geprüfte Komponenten:** Backend API (`data_sync.API`), Python CLI (`data_sync.CLI`), Flutter Client (`data_sync.FLUTTER`)
 - **Gesamtergebnis:** `PASSED`
 
 ---
@@ -18,7 +18,8 @@
 | `data_sync.CLI (ApiClient URL-Auflösung & Header)` | `OK` | 2 | 2 | 0 | 0 |
 | `data_sync.CLI (ApiClient Login & Token-Handling)` | `OK` | 1 | 1 | 0 | 0 |
 | `data_sync.CLI (ConfigHandler JSON Read/Write)` | `OK` | 1 | 1 | 0 | 0 |
-| **Gesamt (`data_sync.API` & `data_sync.CLI`)** | **`OK`** | **19** | **19** | **0** | **0** |
+| `data_sync.FLUTTER (Settings Model & Auth State Integration)` | `OK` | 3 | 3 | 0 | 0 |
+| **Gesamt (`data_sync.API`, `data_sync.CLI`, `data_sync.FLUTTER`)** | **`OK`** | **22** | **22** | **0** | **0** |
 
 ---
 
@@ -63,6 +64,16 @@ Befehl: `python3 -m unittest discover -s data_sync.CLI/src -p "*test*.py" -v`
 
 ---
 
+### C) Flutter Client (`data_sync.FLUTTER`)
+Befehl / Test-Suite: `data_sync.FLUTTER/test/settings_test.dart`
+
+#### Test Suite: Settings Model & Auth State Integration
+- [x] `Standard-Settings sind nicht authentifiziert`: Prüft Initialwerte (`isAuthenticated == false`, `authToken == null`, `username == null`, `userId == null`, `isAdmin == false`): `PASS`
+- [x] `copyWith übernimmt Auth-Parameter korrekt`: Prüft Aktualisierung von Token (`sBuffyToken`), Benutzername (`sBuffyUser`), ID (`iBuffyId`) und Admin-Status unter Beibehaltung bestehender Felder: `PASS`
+- [x] `isAuthenticated wird false bei leerem Token`: Stellt sicher, dass leere oder aus Whitespace bestehende Tokens (`sBuffyEmptyToken = '   '`) über `trim().isNotEmpty` nicht als authentifiziert gewertet werden: `PASS`
+
+---
+
 ## 3. Code-Qualitäts- & Konventionsprüfung
 
 1. **Formatierungsprüfung Backend (`dotnet format --verify-no-changes`):**
@@ -75,11 +86,12 @@ Befehl: `python3 -m unittest discover -s data_sync.CLI/src -p "*test*.py" -v`
 
 3. **Puffer- und Zählvariablen-Konvention (`sBuffy` / `iBuffy`):**
    - Status: `Eingehalten`
-   - Alle String-Puffer (`sBuffyToken`, `sBuffyUrl`, `sBuffyTokenHash`, `sBuffyPath`, `sBuffyUsername`, etc.) und Schleifenzähler / Integer-Variablen (`iBuffyUserId`, `iBuffyPassCount`, `iBuffyFailCount`, `iBuffyRowsAffected`, etc.) in API- und CLI-Modulen sowie Test-Suiten folgen der vorgeschriebenen Namenskonvention.
+   - Alle String-Puffer (`sBuffyToken`, `sBuffyUser`, `sBuffyEmptyToken`, `sBuffyUrl`, `sBuffyPath`, etc.) und Schleifenzähler / Integer-Variablen (`iBuffyId`, `iBuffyUserId`, `iBuffyPassCount`, `iBuffyFailCount`, `iBuffyDeleteCount`, etc.) in API-, CLI- und Flutter-Modulen sowie Test-Suiten folgen der vorgeschriebenen Namenskonvention.
 
 4. **Whitelist-Konformität:**
    - Backend: Ausschließlich freigegebene Bibliotheken (`Microsoft.Data.Sqlite`, `DotNetEnv`) aktiv im Einsatz.
    - CLI: Ausschließlich freigegebene Bibliotheken (`requests`, Python Standardbibliothek) genutzt.
+   - Flutter: Ausschließlich freigegebene Bibliotheken (`sqflite`, `path_provider`, `path`, `file_picker`, `http`, `crypto`, `google_fonts`, `permission_handler`) genutzt.
    - Strikte No-New-Libs-Regel eingehalten.
 
 ---
@@ -87,4 +99,4 @@ Befehl: `python3 -m unittest discover -s data_sync.CLI/src -p "*test*.py" -v`
 ## 4. Fazit & Fail-Fast-Status
 
 - **Fail-Fast-Status:** `Alle Tests bestanden – Security-Audit läuft regulär weiter`
-- **Fazit:** Sämtliche 19 Unit- und Integrationstests über Backend (`data_sync.API`, 15 Tests) und Python-CLI (`data_sync.CLI`, 4 Tests) wurden erfolgreich mit Exit-Code 0 abgeschlossen. Es traten keinerlei Regressionen, Pfad-Traversal-Schwächen, Autorisierungsfehler oder Konfigurationsprobleme auf.
+- **Fazit:** Sämtliche 22 Unit- und Integrationstests über Backend (`data_sync.API`, 15 Tests), Python-CLI (`data_sync.CLI`, 4 Tests) und Flutter (`data_sync.FLUTTER`, 3 Tests) wurden erfolgreich mit Exit-Code 0 abgeschlossen. Es traten keinerlei Regressionen, Pfad-Traversal-Schwächen, Autorisierungsfehler oder Konfigurationsprobleme auf. Die Validierungslogik für den Authentifizierungsstatus im Settings-Modell wurde gegen Whitespace-Tokens gehärtet.

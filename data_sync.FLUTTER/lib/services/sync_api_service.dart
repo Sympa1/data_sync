@@ -7,20 +7,212 @@ import 'package:path/path.dart' as path;
 
 import '../models/sync_models.dart';
 
-/// Kapselt alle HTTP-Aufrufe an die ASP.NET Sync-API.
+/// Kapselt alle HTTP-Aufrufe an die data_sync REST-API (Sync, Authentifizierung und Administration).
 class SyncApiService {
   SyncApiService({http.Client? httpClient})
-    : _httpClient = httpClient ?? http.Client();
+      : _httpClient = httpClient ?? http.Client();
 
   final http.Client _httpClient;
 
   /// Liefert die normalisierte Basis-URL für Log-Ausgaben.
   String describeBaseUrl(String apiBaseUrl) => _normalizeBaseUrl(apiBaseUrl);
 
-  /// Sendet das lokale Manifest an die API.
+  // ==========================================
+  // 1. Authentifizierungs-Endpunkte
+  // ==========================================
+
+  /// Meldet den Benutzer über /api/auth/login an und liefert Token und Benutzerdaten zurück.
+  Future<Map<String, dynamic>> login({
+    required String apiBaseUrl,
+    required String username,
+    required String password,
+    bool allowInsecureTlsForLocalhost = false,
+  }) async {
+    final uri = _buildRootUri(apiBaseUrl, '/api/auth/login');
+    final response = await _executeRequest(
+      apiBaseUrl,
+      allowInsecureTlsForLocalhost,
+      (client) => client.post(
+        uri,
+        headers: {HttpHeaders.contentTypeHeader: 'application/json'},
+        body: jsonEncode({'Username': username, 'Password': password}),
+      ),
+    );
+
+    _ensureSuccess(response, 'Anmeldung');
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  /// Registriert ein neues Benutzerkonto über /api/auth/register.
+  Future<Map<String, dynamic>> register({
+    required String apiBaseUrl,
+    required String username,
+    required String password,
+    bool allowInsecureTlsForLocalhost = false,
+  }) async {
+    final uri = _buildRootUri(apiBaseUrl, '/api/auth/register');
+    final response = await _executeRequest(
+      apiBaseUrl,
+      allowInsecureTlsForLocalhost,
+      (client) => client.post(
+        uri,
+        headers: {HttpHeaders.contentTypeHeader: 'application/json'},
+        body: jsonEncode({'Username': username, 'Password': password}),
+      ),
+    );
+
+    _ensureSuccess(response, 'Registrierung');
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  /// Prüft das aktive Benutzerprofil über /api/auth/me.
+  Future<Map<String, dynamic>> getMe({
+    required String apiBaseUrl,
+    required String authToken,
+    bool allowInsecureTlsForLocalhost = false,
+  }) async {
+    final uri = _buildRootUri(apiBaseUrl, '/api/auth/me');
+    final response = await _executeRequest(
+      apiBaseUrl,
+      allowInsecureTlsForLocalhost,
+      (client) => client.get(
+        uri,
+        headers: _buildHeaders(authToken: authToken),
+      ),
+    );
+
+    _ensureSuccess(response, 'Profilabfrage');
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  // ==========================================
+  // 2. Administrations-Endpunkte
+  // ==========================================
+
+  /// Ruft System-Statistiken über /api/admin/stats ab.
+  Future<Map<String, dynamic>> fetchAdminStats({
+    required String apiBaseUrl,
+    required String authToken,
+    bool allowInsecureTlsForLocalhost = false,
+  }) async {
+    final uri = _buildRootUri(apiBaseUrl, '/api/admin/stats');
+    final response = await _executeRequest(
+      apiBaseUrl,
+      allowInsecureTlsForLocalhost,
+      (client) => client.get(
+        uri,
+        headers: _buildHeaders(authToken: authToken),
+      ),
+    );
+
+    _ensureSuccess(response, 'Admin-Statistiken');
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  /// Ruft die Benutzerliste über /api/admin/users ab.
+  Future<List<Map<String, dynamic>>> fetchAdminUsers({
+    required String apiBaseUrl,
+    required String authToken,
+    bool allowInsecureTlsForLocalhost = false,
+  }) async {
+    final uri = _buildRootUri(apiBaseUrl, '/api/admin/users');
+    final response = await _executeRequest(
+      apiBaseUrl,
+      allowInsecureTlsForLocalhost,
+      (client) => client.get(
+        uri,
+        headers: _buildHeaders(authToken: authToken),
+      ),
+    );
+
+    _ensureSuccess(response, 'Benutzerliste');
+    final decoded = jsonDecode(response.body);
+    if (decoded is List) {
+      return decoded.whereType<Map<String, dynamic>>().toList();
+    }
+    return [];
+  }
+
+  /// Erstellt einen neuen Benutzer über /api/admin/users.
+  Future<void> createAdminUser({
+    required String apiBaseUrl,
+    required String authToken,
+    required String username,
+    required String password,
+    required bool isAdmin,
+    bool allowInsecureTlsForLocalhost = false,
+  }) async {
+    final uri = _buildRootUri(apiBaseUrl, '/api/admin/users');
+    final response = await _executeRequest(
+      apiBaseUrl,
+      allowInsecureTlsForLocalhost,
+      (client) => client.post(
+        uri,
+        headers: _buildHeaders(authToken: authToken, contentType: 'application/json'),
+        body: jsonEncode({
+          'Username': username,
+          'Password': password,
+          'IsAdmin': isAdmin,
+        }),
+      ),
+    );
+
+    _ensureSuccess(response, 'Benutzer anlegen');
+  }
+
+  /// Löscht einen Benutzer über /api/admin/users/{userId}.
+  Future<void> deleteAdminUser({
+    required String apiBaseUrl,
+    required String authToken,
+    required int userId,
+    bool allowInsecureTlsForLocalhost = false,
+  }) async {
+    final uri = _buildRootUri(apiBaseUrl, '/api/admin/users/$userId');
+    final response = await _executeRequest(
+      apiBaseUrl,
+      allowInsecureTlsForLocalhost,
+      (client) => client.delete(
+        uri,
+        headers: _buildHeaders(authToken: authToken),
+      ),
+    );
+
+    _ensureSuccess(response, 'Benutzer löschen');
+  }
+
+  /// Ruft System- und Fehlerprotokolle über /api/admin/logs ab.
+  Future<List<Map<String, dynamic>>> fetchAdminLogs({
+    required String apiBaseUrl,
+    required String authToken,
+    bool allowInsecureTlsForLocalhost = false,
+  }) async {
+    final uri = _buildRootUri(apiBaseUrl, '/api/admin/logs');
+    final response = await _executeRequest(
+      apiBaseUrl,
+      allowInsecureTlsForLocalhost,
+      (client) => client.get(
+        uri,
+        headers: _buildHeaders(authToken: authToken),
+      ),
+    );
+
+    _ensureSuccess(response, 'Systemprotokolle');
+    final decoded = jsonDecode(response.body);
+    if (decoded is List) {
+      return decoded.whereType<Map<String, dynamic>>().toList();
+    }
+    return [];
+  }
+
+  // ==========================================
+  // 3. Datei-Synchronisations-Endpunkte
+  // ==========================================
+
+  /// Sendet das lokale Manifest an die API (POST /api/sync/manifest).
   Future<List<SyncManifestResponse>> sendManifest({
     required String apiBaseUrl,
     required List<SyncFileDescriptor> manifest,
+    String? authToken,
     bool allowInsecureTlsForLocalhost = false,
   }) async {
     final response = await _executeRequest(
@@ -28,7 +220,10 @@ class SyncApiService {
       allowInsecureTlsForLocalhost,
       (client) => client.post(
         _buildUri(apiBaseUrl, 'manifest'),
-        headers: {HttpHeaders.contentTypeHeader: 'application/json'},
+        headers: _buildHeaders(
+          authToken: authToken,
+          contentType: 'application/json',
+        ),
         body: jsonEncode(manifest.map((entry) => entry.toJson()).toList()),
       ),
     );
@@ -47,11 +242,12 @@ class SyncApiService {
         .toList();
   }
 
-  /// Lädt eine einzelne Datei auf den Server hoch.
+  /// Lädt eine einzelne Datei auf den Server hoch (POST /api/sync/upload).
   Future<void> uploadFile({
     required String apiBaseUrl,
     required String syncRootPath,
     required SyncFileDescriptor file,
+    String? authToken,
     bool allowInsecureTlsForLocalhost = false,
   }) async {
     final absolutePath = path.join(syncRootPath, file.relativePath);
@@ -79,6 +275,10 @@ class SyncApiService {
         ),
       );
 
+    if (authToken != null && authToken.trim().isNotEmpty) {
+      request.headers[HttpHeaders.authorizationHeader] = 'Bearer $authToken';
+    }
+
     final response = await _executeRequest(
       apiBaseUrl,
       allowInsecureTlsForLocalhost,
@@ -91,11 +291,12 @@ class SyncApiService {
     _ensureSuccess(response, 'Upload');
   }
 
-  /// Lädt eine Datei vom Server herunter und speichert sie lokal.
+  /// Lädt eine Datei vom Server herunter (GET /api/sync/download).
   Future<void> downloadFile({
     required String apiBaseUrl,
     required String syncRootPath,
     required SyncManifestResponse file,
+    String? authToken,
     bool allowInsecureTlsForLocalhost = false,
   }) async {
     final response = await _executeRequest(
@@ -107,6 +308,7 @@ class SyncApiService {
           'download',
           queryParameters: {'filePath': file.relativePath},
         ),
+        headers: _buildHeaders(authToken: authToken),
       ),
     );
 
@@ -130,10 +332,11 @@ class SyncApiService {
     }
   }
 
-  /// Meldet eine lokale Löschung an den Server.
+  /// Meldet eine lokale Löschung an den Server (DELETE /api/sync/delete).
   Future<void> deleteRemoteFile({
     required String apiBaseUrl,
     required String relativePath,
+    String? authToken,
     bool allowInsecureTlsForLocalhost = false,
   }) async {
     final response = await _executeRequest(
@@ -145,42 +348,29 @@ class SyncApiService {
           'delete',
           queryParameters: {'filePath': relativePath},
         ),
+        headers: _buildHeaders(authToken: authToken),
       ),
     );
 
     _ensureSuccess(response, 'Delete');
   }
 
-  /// Führt einen HTTP-Aufruf mit optionaler TLS-Ausnahme fuer lokale Ziele aus.
-  Future<T> _executeRequest<T>(
-    String apiBaseUrl,
-    bool allowInsecureTlsForLocalhost,
-    Future<T> Function(http.Client client) action,
-  ) async {
-    final targetUri = Uri.parse(_normalizeBaseUrl(apiBaseUrl));
-    final client = _createClientForUri(
-      targetUri,
-      allowInsecureTlsForLocalhost: allowInsecureTlsForLocalhost,
-    );
+  // ==========================================
+  // 4. Hilfsmethoden für URL- & Request-Bau
+  // ==========================================
 
-    try {
-      return await action(client);
-    } on HandshakeException catch (error) {
-      throw Exception(_buildCertificateErrorMessage(targetUri, error.toString()));
-    } on http.ClientException catch (error) {
-      if (_looksLikeCertificateError(error.message)) {
-        throw Exception(_buildCertificateErrorMessage(targetUri, error.message));
-      }
-
-      rethrow;
-    } finally {
-      if (!identical(client, _httpClient)) {
-        client.close();
-      }
+  Map<String, String> _buildHeaders({String? authToken, String? contentType}) {
+    final headers = <String, String>{};
+    if (contentType != null) {
+      headers[HttpHeaders.contentTypeHeader] = contentType;
     }
+    if (authToken != null && authToken.trim().isNotEmpty) {
+      headers[HttpHeaders.authorizationHeader] = 'Bearer $authToken';
+    }
+    return headers;
   }
 
-  /// Baut die URI für einen API-Endpunkt.
+  /// Baut eine URI relativ zu /api/sync.
   Uri _buildUri(
     String apiBaseUrl,
     String endpoint, {
@@ -200,6 +390,24 @@ class SyncApiService {
     );
   }
 
+  /// Baut eine absolute URI relativ zum Server-Root (z.B. für /api/auth/* oder /api/admin/*).
+  Uri _buildRootUri(
+    String apiBaseUrl,
+    String rootPath, {
+    Map<String, String>? queryParameters,
+  }) {
+    final baseUri = Uri.parse(_normalizeBaseUrl(apiBaseUrl));
+    final normalizedPath = rootPath.startsWith('/') ? rootPath : '/$rootPath';
+
+    return Uri(
+      scheme: baseUri.scheme,
+      host: baseUri.host,
+      port: baseUri.hasPort ? baseUri.port : null,
+      path: normalizedPath,
+      queryParameters: queryParameters?.isEmpty ?? true ? null : queryParameters,
+    );
+  }
+
   /// Ergänzt fehlende API-Segmente an der Basis-URL.
   String _normalizeBaseUrl(String apiBaseUrl) {
     final trimmed = apiBaseUrl.trim().replaceFirst(RegExp(r'/+$'), '');
@@ -213,6 +421,35 @@ class SyncApiService {
     }
 
     return '$trimmed/api/sync';
+  }
+
+  /// Führt einen HTTP-Aufruf mit optionaler TLS-Ausnahme für lokale Ziele aus.
+  Future<T> _executeRequest<T>(
+    String apiBaseUrl,
+    bool allowInsecureTlsForLocalhost,
+    Future<T> Function(http.Client client) action,
+  ) async {
+    final targetUri = Uri.parse(_normalizeBaseUrl(apiBaseUrl));
+    final client = _createClientForUri(
+      targetUri,
+      allowInsecureTlsForLocalhost: allowInsecureTlsForLocalhost,
+    );
+
+    try {
+      return await action(client);
+    } on SocketException catch (error) {
+      throw Exception('Server unter ${targetUri.host} nicht erreichbar: ${error.message}');
+    } catch (error) {
+      final message = error.toString();
+      if (_looksLikeCertificateError(message)) {
+        throw Exception(_buildCertificateErrorMessage(targetUri, message));
+      }
+      rethrow;
+    } finally {
+      if (!identical(client, _httpClient)) {
+        client.close();
+      }
+    }
   }
 
   /// Erstellt bei Bedarf einen Client mit lokaler Zertifikatsausnahme.
@@ -232,7 +469,7 @@ class SyncApiService {
     return IOClient(httpClient);
   }
 
-  /// Erlaubt die TLS-Ausnahme nur fuer lokale HTTPS-Adressen.
+  /// Erlaubt die TLS-Ausnahme nur für lokale HTTPS-Adressen.
   bool _isSupportedInsecureHttpsUri(Uri uri) {
     return uri.scheme == 'https' && _isSupportedInsecureHost(uri.host);
   }
@@ -276,7 +513,7 @@ class SyncApiService {
         (first == 169 && second == 254);
   }
 
-  /// Erkennt lokale IPv6-Bereiche fuer Entwicklung im Heim- oder Firmennetz.
+  /// Erkennt lokale IPv6-Bereiche für Entwicklung im Heim- oder Firmennetz.
   bool _isPrivateIpv6Address(String address) {
     final normalizedAddress = address.toLowerCase();
 
@@ -285,7 +522,6 @@ class SyncApiService {
         normalizedAddress.startsWith('fe80:');
   }
 
-  /// Erkennt typische TLS-Fehler von lokalen Entwicklungszertifikaten.
   bool _looksLikeCertificateError(String message) {
     final normalizedMessage = message.toLowerCase();
 
@@ -294,49 +530,29 @@ class SyncApiService {
         normalizedMessage.contains('local issuer certificate');
   }
 
-  /// Baut eine handlungsorientierte Meldung fuer Zertifikatsprobleme.
   String _buildCertificateErrorMessage(Uri uri, String details) {
     if (_isSupportedInsecureHttpsUri(uri)) {
-      return 'Das HTTPS-Zertifikat fuer ${uri.host} wird auf diesem Geraet '
-          'nicht vertraut. Bei lokalen Entwicklungs- oder LAN-Adressen kannst '
-          'du in den Einstellungen die Zertifikatsausnahme aktivieren oder '
-          'eine vertrauenswuerdige CA verwenden. Details: $details';
+      return 'Das HTTPS-Zertifikat für ${uri.host} wird nicht vertraut. Details: $details';
     }
 
     return 'TLS-Verbindung zur API fehlgeschlagen. Details: $details';
   }
 
-  /// Baut eine verständliche Fehlermeldung fuer lokale Schreibprobleme.
   String _buildLocalWriteErrorMessage({
     required String syncRootPath,
     required String absolutePath,
     required String details,
   }) {
     if (Platform.isAndroid) {
-      return 'Android darf nicht in jeden Ordner unter /storage/emulated/0 '
-          'schreiben. Richte das Sync-Verzeichnis in den Einstellungen neu ein, '
-          'damit die App ihren beschreibbaren App-Ordner nutzt. '
-          'Ziel: $absolutePath | Aktuelles Sync-Verzeichnis: $syncRootPath | '
-          'Details: $details';
+      return 'Android darf nicht in jeden Ordner unter /storage/emulated/0 schreiben. Details: $details';
     }
 
-    return 'Datei konnte lokal nicht gespeichert werden. '
-        'Ziel: $absolutePath | Details: $details';
+    return 'Datei konnte lokal nicht gespeichert werden. Details: $details';
   }
 
-  /// Prüft den HTTP-Status und erzeugt bei Bedarf eine verständliche Fehlermeldung.
   void _ensureSuccess(http.Response response, String operationLabel) {
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return;
-    }
-
-    if (_looksLikeWrongWebServerResponse(response)) {
-      throw Exception(
-        '$operationLabel fehlgeschlagen (${response.statusCode}): '
-        'Die konfigurierte URL zeigt nicht auf die Sync-API, sondern auf '
-        'einen anderen Webserver oder den falschen Port. Pruefe Host, Port '
-        'und Reverse-Proxy-Konfiguration.',
-      );
     }
 
     final responseBody = response.body.trim();
@@ -345,17 +561,5 @@ class SyncApiService {
     throw Exception(
       '$operationLabel fehlgeschlagen (${response.statusCode}): $details',
     );
-  }
-
-  /// Erkennt typische HTML-Fehlerseiten fremder Webserver statt einer API-Antwort.
-  bool _looksLikeWrongWebServerResponse(http.Response response) {
-    final contentType =
-        response.headers[HttpHeaders.contentTypeHeader]?.toLowerCase() ?? '';
-    final responseBody = response.body.toLowerCase();
-
-    return contentType.contains('text/html') ||
-        responseBody.contains('<!doctype html') ||
-        responseBody.contains('<html') ||
-        responseBody.contains('apache/');
   }
 }
