@@ -65,12 +65,13 @@ class DeleteCommand(BaseCommand):
         """
         config_handler = ConfigHandler()
         api_base_url = config_handler.get_config("api_base_url")
+        sBuffyToken = config_handler.get_config("auth_token")
         verify_ssl = config_handler.get_config("verify_ssl")
         
         if verify_ssl is None:
             verify_ssl = True
 
-        api_client = ApiClient(api_base_url, verify_ssl)
+        api_client = ApiClient(api_base_url, verify_ssl=verify_ssl, auth_token=sBuffyToken)
         db_handler = SqliteHandler()
         sync_state_manager = SyncStateManager()
 

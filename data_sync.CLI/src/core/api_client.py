@@ -1,118 +1,238 @@
-import requests
 import json
+from typing import Any, Dict, Optional, Union
+import requests
 
 
 class ApiClient:
     """
-    Ein einfacher API-Client zur Kommunikation mit einer RESTful API.
-    Unterstützt GET, POST, PUT, DELETE Anfragen sowie Datei-Uploads und -Downloads.
-    Anhand der Base-URL wird zwischen http und https unterschieden.
+    API-Client zur Kommunikation mit der data_sync REST-API.
+    Unterstützt Authentifizierung via Bearer-Token, Dateitransfers (Upload/Download),
+    Manifest-Abgleich und Authentifizierungs-Endpunkte (/api/auth/*).
     """
-    def __init__(self, base_url: str, verify_ssl: bool = True):
+
+    def __init__(self, base_url: str, verify_ssl: bool = True, auth_token: Optional[str] = None):
         """
-        Initialisiert den ApiClient mit der Basis-URL der API.
-        :param base_url: Basis-URL der API
-        :param verify_ssl: SSL-Zertifikatsverifizierung aktivieren (Default: True für Sicherheit)
+        Initialisiert den ApiClient mit Basis-URL, SSL-Flag und optionalem Bearer-Token.
+        Normalisiert die Server-URL so, dass sowohl /api/sync als auch die Root-URL unterstützt werden.
         """
-        self.base_url = base_url
+        self.base_url = base_url.rstrip("/")
         self.verify_ssl = verify_ssl
+        self.auth_token = auth_token
 
-    def get(self, endpoint: str, params=None):
-        """
-        Führt eine GET-Anfrage an die API durch.
-        :param endpoint: API-Endpunkt
-        :param params: Query-Parameter als Dictionary (z.B. {"filePath": "path/to/file.txt"})
-        :return: Antwort der API als JSON
-        """
-        response = requests.get(f"{self.base_url}/{endpoint}", params=params, verify=self.verify_ssl)
-        response.raise_for_status()  # Hebt eine Ausnahme bei HTTP-Fehlern hervor
-        return response.json()
+        # Ermittle Server-Root (z.B. http://localhost:5000)
+        sBuffyUrl = self.base_url
+        if sBuffyUrl.endswith("/api/sync"):
+            sBuffyUrl = sBuffyUrl[:-9]
+        elif sBuffyUrl.endswith("/api"):
+            sBuffyUrl = sBuffyUrl[:-4]
+        self.server_root = sBuffyUrl
 
-    def post(self, endpoint: str, json=None, params=None):
-        """
-        Führt eine POST-Anfrage an die API durch.
-        :param endpoint: API-Endpunkt
-        :param json: JSON-Daten als Dictionary oder Liste (z.B. [{"FilePath": "...", "Hashvalue": "..."}])
-        :param params: Query-Parameter als Dictionary (z.B. {"version": "1.0"})
-        :return: Antwort der API als JSON
-        """
-        url = f"{self.base_url}/{endpoint}"
-        
-        response = requests.post(url, json=json, params=params, verify=self.verify_ssl)
-        
-        response.raise_for_status()  # Hebt eine Ausnahme bei HTTP-Fehlern hervor
-        return response.json()
+        # Standard-Header inkl. Bearer-Token konfigurieren
+        self.headers: Dict[str, str] = {}
+        if self.auth_token:
+            self.headers["Authorization"] = f"Bearer {self.auth_token}"
 
-    def put(self, endpoint: str, data=None, params=None):
+    def set_auth_token(self, token: Optional[str]) -> None:
         """
-        Führt eine PUT-Anfrage an die API durch.
-        :param endpoint: API-Endpunkt
-        :param data: JSON-Daten als Dictionary oder Liste
-        :param params: Query-Parameter als Dictionary
-        :return: Antwort der API als JSON
+        Aktualisiert das aktive Bearer-Token im Client.
         """
-        response = requests.put(f"{self.base_url}/{endpoint}", json=data, params=params, verify=self.verify_ssl)
-        response.raise_for_status()  # Hebt eine Ausnahme bei HTTP-Fehlern hervor
-        return response.json()
+        self.auth_token = token
+        if token:
+            self.headers["Authorization"] = f"Bearer {token}"
+        elif "Authorization" in self.headers:
+            del self.headers["Authorization"]
 
-    def delete(self, endpoint: str, params=None):
+    def _resolve_url(self, endpoint: str) -> str:
         """
-        Führt eine DELETE-Anfrage an die API durch.
-        :param endpoint: API-Endpunkt
-        :param params: Query-Parameter als Dictionary (z.B. {"filePath": "path/to/file.txt"})
-        :return: Antwort der API als JSON
+        Löst den vollständigen URL-Pfad für API-Endpunkte auf.
+        Unterscheidet fachlich zwischen Auth- und Sync-Routen.
         """
-        response = requests.delete(f"{self.base_url}/{endpoint}", params=params, verify=self.verify_ssl)
-        response.raise_for_status()  # Hebt eine Ausnahme bei HTTP-Fehlern hervor
-        return response.json()
+        sBuffyCleanEndpoint = endpoint.strip("/")
+        if sBuffyCleanEndpoint.startswith("api/"):
+            return f"{self.server_root}/{sBuffyCleanEndpoint}"
+        elif sBuffyCleanEndpoint in ("register", "login", "me", "logout"):
+            return f"{self.server_root}/api/auth/{sBuffyCleanEndpoint}"
+        elif sBuffyCleanEndpoint in ("manifest", "upload", "download", "delete"):
+            return f"{self.server_root}/api/sync/{sBuffyCleanEndpoint}"
+        return f"{self.base_url}/{sBuffyCleanEndpoint}"
 
-    def upload_files(self, endpoint: str, files, params=None):
+    def register(self, username: str, password: str) -> Dict[str, Any]:
         """
-        Führt eine POST-Anfrage mit Datei-Upload an die API durch.
-        :param endpoint: API-Endpunkt
-        :param files: Dictionary mit Dateien für multipart/form-data (z.B. {"files": [open("file.txt", "rb"), ...]})
-        :param params: Query-Parameter (z.B. {"basePath": "folder/subfolder"})
-        :return: Antwort der API als JSON
+        Registriert einen neuen Benutzer über /api/auth/register.
         """
-        response = requests.post(f"{self.base_url}/{endpoint}", files=files, params=params, verify=self.verify_ssl)
+        sBuffyUrl = self._resolve_url("register")
+        response = requests.post(
+            sBuffyUrl,
+            json={"username": username, "password": password},
+            verify=self.verify_ssl,
+            timeout=15
+        )
         response.raise_for_status()
         return response.json()
 
-    def download_file(self, endpoint: str, params=None):
+    def login(self, username: str, password: str) -> Dict[str, Any]:
         """
-        Führt eine GET-Anfrage zum Download einer Datei durch.
-        :param endpoint: API-Endpunkt
-        :param params: Query-Parameter (z.B. {"filePath": "folder/file.txt"})
-        :return: Binärdaten der Datei
+        Meldet einen Benutzer über /api/auth/login an und setzt das Token im Client.
         """
-        response = requests.get(f"{self.base_url}/{endpoint}", params=params, verify=self.verify_ssl)
+        sBuffyUrl = self._resolve_url("login")
+        response = requests.post(
+            sBuffyUrl,
+            json={"username": username, "password": password},
+            verify=self.verify_ssl,
+            timeout=15
+        )
+        response.raise_for_status()
+        data = response.json()
+        sBuffyToken = data.get("token") or data.get("Token")
+        if sBuffyToken:
+            self.set_auth_token(sBuffyToken)
+        return data
+
+    def get_me(self) -> Dict[str, Any]:
+        """
+        Ruft das eigene Benutzerprofil über /api/auth/me ab.
+        """
+        sBuffyUrl = self._resolve_url("me")
+        response = requests.get(
+            sBuffyUrl,
+            headers=self.headers,
+            verify=self.verify_ssl,
+            timeout=15
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def logout(self) -> bool:
+        """
+        Meldet den Benutzer über /api/auth/logout ab und widerruft das Token auf dem Server.
+        """
+        sBuffyUrl = self._resolve_url("logout")
+        try:
+            response = requests.post(
+                sBuffyUrl,
+                headers=self.headers,
+                verify=self.verify_ssl,
+                timeout=15
+            )
+            self.set_auth_token(None)
+            return response.status_code == 200
+        except Exception:
+            self.set_auth_token(None)
+            return False
+
+    def get(self, endpoint: str, params: Optional[Dict[str, Any]] = None) -> Any:
+        """
+        Führt einen authentifizierten GET-Request an die API aus.
+        """
+        sBuffyUrl = self._resolve_url(endpoint)
+        response = requests.get(
+            sBuffyUrl,
+            params=params,
+            headers=self.headers,
+            verify=self.verify_ssl,
+            timeout=30
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def post(self, endpoint: str, json: Any = None, params: Optional[Dict[str, Any]] = None) -> Any:
+        """
+        Führt einen authentifizierten POST-Request mit JSON-Body aus.
+        """
+        sBuffyUrl = self._resolve_url(endpoint)
+        response = requests.post(
+            sBuffyUrl,
+            json=json,
+            params=params,
+            headers=self.headers,
+            verify=self.verify_ssl,
+            timeout=60
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def put(self, endpoint: str, data: Any = None, params: Optional[Dict[str, Any]] = None) -> Any:
+        """
+        Führt einen authentifizierten PUT-Request aus.
+        """
+        sBuffyUrl = self._resolve_url(endpoint)
+        response = requests.put(
+            sBuffyUrl,
+            json=data,
+            params=params,
+            headers=self.headers,
+            verify=self.verify_ssl,
+            timeout=30
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def delete(self, endpoint: str, params: Optional[Dict[str, Any]] = None) -> Any:
+        """
+        Führt einen authentifizierten DELETE-Request aus.
+        """
+        sBuffyUrl = self._resolve_url(endpoint)
+        response = requests.delete(
+            sBuffyUrl,
+            params=params,
+            headers=self.headers,
+            verify=self.verify_ssl,
+            timeout=30
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def upload_files(self, endpoint: str, files: Any, params: Optional[Dict[str, Any]] = None) -> Any:
+        """
+        Lädt eine Datei multipart/form-data an den Ziel-Endpunkt hoch.
+        """
+        sBuffyUrl = self._resolve_url(endpoint)
+        # Für multipart/form-data setzt requests den Content-Type Boundary selbst,
+        # daher nur Authorization-Header übergeben
+        headers = dict(self.headers)
+        response = requests.post(
+            sBuffyUrl,
+            files=files,
+            params=params,
+            headers=headers,
+            verify=self.verify_ssl,
+            timeout=120
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def download_file(self, endpoint: str, params: Optional[Dict[str, Any]] = None) -> bytes:
+        """
+        Lädt Dateiinhalte als Binärdaten vom Server herunter.
+        """
+        sBuffyUrl = self._resolve_url(endpoint)
+        response = requests.get(
+            sBuffyUrl,
+            params=params,
+            headers=self.headers,
+            verify=self.verify_ssl,
+            timeout=120
+        )
         response.raise_for_status()
         return response.content
-    
-    def delete_file(self, endpoint: str, params=None):
+
+    def delete_file(self, endpoint: str, params: Optional[Dict[str, Any]] = None) -> Any:
         """
-        Sendet DELETE-Request an die API zum Löschen einer Datei auf dem Server.
-        Diese Methode wird für die Synchronisation von Löschungen verwendet.
-        
-        :param endpoint: API-Endpunkt (typischerweise "delete")
-        :param params: Query-Parameter mit dem Dateipfad (z.B. {"filePath": "folder/file.txt"})
-        :return: JSON-Response vom Server mit Status-Information
-        :raises RuntimeError: Wenn DELETE-Request fehlschlägt
+        Löscht eine Datei auf dem Remote-Server.
         """
         if params is None or "filePath" not in params:
-            raise ValueError("Parameter 'filePath' is required for delete_file()")
-        
-        url = f"{self.base_url}/{endpoint}"
-        
+            raise ValueError("Parameter 'filePath' ist für delete_file() erforderlich.")
+
+        sBuffyUrl = self._resolve_url(endpoint)
         try:
             response = requests.delete(
-                url, 
-                params=params, 
+                sBuffyUrl,
+                params=params,
+                headers=self.headers,
                 verify=self.verify_ssl,
                 timeout=30
             )
             response.raise_for_status()
             return response.json()
-        
         except requests.exceptions.RequestException as e:
-            raise RuntimeError(f"DELETE request failed for {params.get('filePath')}: {e}")
+            raise RuntimeError(f"DELETE-Request für {params.get('filePath')} fehlgeschlagen: {e}")

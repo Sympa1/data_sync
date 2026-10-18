@@ -1,43 +1,38 @@
 import argparse
 import os
 
-from core.commands import InitCommand, ScanCommand, ManifestCommand, DownloadCommand, UploadCommand, DeleteCommand
-
-
-# TODO: Macht eventuell ein Command für das Löschen von Dateien, zumindest für das löschen von Dateien auf dem Server Sinn?
-#  Also z.B. wenn eine Datei lokal gelöscht wurde, soll sie auch auf dem Server gelöscht werden können.
-#  Prüfen in welches Verzeichnis wie z.B. die api_client.py Datei abgelegt werden sollen.
-#  Das abgleichen, was mit der jeweiligen Datei passieren soll, vereinfachen. Ich denke da an einen if elif else Block.
-#  Da soll dann jede eventualität abgedeckt werden.
-#  Evtl. auch eine Art Strategy Pattern implementieren?
-#  ANALYSE: Im CLient gelöschte Dateien, werden vom Server erneut runtergeladen. Auf dem Server gelöschte Dateien,
-#  werden beim Client nicht gelöscht. VORAUSSETZUNG: Es wird davon ausgegangen, dass die Datein jeweils, wo Sie gelöscht
-#  wurden, auch gelöscht bleiben sollen. Es wird also nicht davon ausgegangen, dass die Dateien nur temporär gelöscht wurden.
+from core.commands import (
+    InitCommand,
+    ScanCommand,
+    ManifestCommand,
+    DownloadCommand,
+    UploadCommand,
+    DeleteCommand,
+    AuthCommand
+)
 
 
 def main():
-    """Main Funktion for Data Synchronization CLI Tool"""
+    """Haupteinstiegspunkt für das data_sync Python CLI-Tool."""
 
-    # ArgumentParser erstellen mit Beschreibung
     parser = argparse.ArgumentParser(
-        description="Data Synchronization CLI Tool",
-        add_help=True)
+        description="data_sync CLI Tool - Cross-Platform Dateisynchronisation",
+        add_help=True
+    )
 
-    # Erstellt eine Gruppe von Argumenten/Flags, die sich gegenseitig ausschließen.
-    # So kann nur eins genutzt werden.
+    # Mutually exclusive Gruppe für Hauptaktionen
     group = parser.add_mutually_exclusive_group(required=True)
 
-    # Hinzufügen von Argumenten/Flags zur Gruppe
     group.add_argument(
         '--sync', '-s',
         action='store_true',
-        help='Startet die Datensynchronisation.'
+        help='Startet die vollständige Datensynchronisation (Scan -> Manifest -> Download -> Upload -> Delete).'
     )
 
     group.add_argument(
         '--manifest', '-m',
         action='store_true',
-        help='Startet die Manifestabwicklung.'
+        help='Startet den Manifest-Abgleich gegen die Web-API.'
     )
 
     group.add_argument(
@@ -61,19 +56,75 @@ def main():
     group.add_argument(
         '--init', '-i',
         action='store_true',
-        help='Initialisiert die Datenbank.'
+        help='Initialisiert die lokale SQLite-Datenbank (cli_db.db).'
     )
 
     group.add_argument(
         '--scan', '-c',
         action='store_true',
-        help='Scannt das Verzeichnis und aktualisiert die Datenbank mit Datei-Informationen'
+        help='Scannt das lokale Verzeichnis und aktualisiert die lokale Datenbank.'
     )
 
-    # Argumente/Flags parsen
+    group.add_argument(
+        '--login', '-l',
+        action='store_true',
+        help='Meldet den Benutzer an der REST-API an und sichert das Bearer-Token.'
+    )
+
+    group.add_argument(
+        '--register', '-r',
+        action='store_true',
+        help='Registriert ein neues Benutzerkonto an der REST-API.'
+    )
+
+    group.add_argument(
+        '--whoami', '-w',
+        action='store_true',
+        help='Zeigt den aktuellen Login-Status und das Server-Benutzerprofil an.'
+    )
+
+    group.add_argument(
+        '--logout',
+        action='store_true',
+        help='Meldet den Benutzer ab und widerruft das Bearer-Token.'
+    )
+
+    # Zusätzliche optionale Parameter für Automatisierung/Skripte
+    parser.add_argument(
+        '--username',
+        type=str,
+        default=None,
+        help='Optional: Benutzername für Login oder Registrierung.'
+    )
+
+    parser.add_argument(
+        '--password',
+        type=str,
+        default=None,
+        help='Optional: Passwort für Login oder Registrierung.'
+    )
+
     args = parser.parse_args()
 
-    if args.init:
+    # Authentifizierungs-Commands
+    if args.login:
+        auth_cmd = AuthCommand()
+        auth_cmd.login(username=args.username, password=args.password)
+
+    elif args.register:
+        auth_cmd = AuthCommand()
+        auth_cmd.register(username=args.username, password=args.password)
+
+    elif args.whoami:
+        auth_cmd = AuthCommand()
+        auth_cmd.whoami()
+
+    elif args.logout:
+        auth_cmd = AuthCommand()
+        auth_cmd.logout()
+
+    # Lokale Initialisierung & Scan
+    elif args.init:
         init_command = InitCommand()
         init_command.execute()
 
@@ -81,6 +132,7 @@ def main():
         scan_command = ScanCommand()
         scan_command.execute()
 
+    # Synchronisations-Befehle
     elif args.manifest:
         manifest_command = ManifestCommand()
         manifest_command.execute()
@@ -88,23 +140,23 @@ def main():
     elif args.download:
         manifest_command = ManifestCommand()
         files_to_sync = manifest_command.execute()
-
-        download_command = DownloadCommand()
-        download_command.execute(files_to_sync)
+        if files_to_sync:
+            download_command = DownloadCommand()
+            download_command.execute(files_to_sync)
 
     elif args.upload:
         manifest_command = ManifestCommand()
         files_to_sync = manifest_command.execute()
-
-        upload_command = UploadCommand()
-        upload_command.execute(files_to_sync)
+        if files_to_sync:
+            upload_command = UploadCommand()
+            upload_command.execute(files_to_sync)
 
     elif args.delete:
         manifest_command = ManifestCommand()
         files_to_sync = manifest_command.execute()
-
-        delete_command = DeleteCommand()
-        delete_command.execute(files_to_sync)
+        if files_to_sync:
+            delete_command = DeleteCommand()
+            delete_command.execute(files_to_sync)
 
     elif args.sync:
         scan_command = ScanCommand()
@@ -112,11 +164,10 @@ def main():
 
         manifest_command = ManifestCommand()
         files_to_sync = manifest_command.execute()
-        
-        # Prüfe ob Manifest erfolgreich war
+
         if files_to_sync is None:
-            print("\n⚠️ Manifest processing failed. Cannot proceed with sync.")
-            print("Please check your connection to the API server.")
+            print("\n⚠️ Manifest-Verarbeitung fehlgeschlagen. Synchronisation abgebrochen.")
+            print("Bitte prüfe die Verbindung zum Server und deinen Anmeldestatus ('--whoami').")
             return
 
         download_command = DownloadCommand()
@@ -133,4 +184,4 @@ if __name__ == '__main__':
     try:
         main()
     finally:
-        print("\n Data Sync CLI execution completed.")
+        print("\n data_sync CLI Ausführung beendet.")

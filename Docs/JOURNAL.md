@@ -4,6 +4,41 @@ Chronologisches Entwicklungs- und Entscheidungsprotokoll gemäß Core Agent Harn
 
 ---
 
+## [2026-10-18 15:30] – Python CLI Rework: REST-API Multi-User Authentifizierung & Token-Support (Branch: rework-cli)
+
+- **Durchgeführte Änderungen:**
+  - **Branch-Isolation:** Eigenen Arbeitsbranch `rework-cli` (ausgehend von `rework-webapi`) erstellt.
+  - **API-Client Erweiterung (`data_sync.CLI/src/core/api_client.py`):**
+    - Bearer-Token-Unterstützung im `Authorization`-Header für alle REST-Endpunkte.
+    - Automatisches URL-Routing für Auth (`/api/auth/*`) und Sync (`/api/sync/*`).
+    - Methoden implementiert: `register(username, password)`, `login(username, password)`, `get_me()`, `logout()`.
+    - Feste Timeouts und SSL-Zertifikatsvalidierung für alle Requests.
+  - **Authentifizierungs-Befehle (`data_sync.CLI/src/core/commands/auth_command.py`):**
+    - Neuer `AuthCommand` mit sicherer Passworteingabe via Standardmodul `getpass` (kein Klartext im Speicher oder Terminal).
+    - Speicherung des Bearer-Tokens, Benutzer-ID und Benutzernamens in `config.json`.
+    - `whoami`-Prüfung gegen `/api/auth/me`.
+    - Saubere Abmeldung und Token-Widerruf via `/api/auth/logout`.
+  - **Sync-Commands auf Token-Support umgestellt:**
+    - `ManifestCommand`, `UploadCommand`, `DownloadCommand`, `DeleteCommand` lesen das hinterlegte Bearer-Token aus und übermitteln es automatisch an die Web-API.
+    - Benutzerfreundliche Warnungen bei fehlendem Token mit Aufforderung zur Anmeldung (`--login`).
+  - **CLI-Haupteinstiegspunkt (`data_sync.CLI/src/main.py`):**
+    - Neue Flags: `--login` (`-l`), `--register` (`-r`), `--whoami` (`-w`), `--logout`.
+    - Optionale Argumente `--username` und `--password` für automatisierte Skripte/Pipelines.
+  - **Unit-Tests (`data_sync.CLI/src/test_cli.py`):**
+    - 4 automatisierte Unit-Tests für `ApiClient` (URL-Routing, Header, Login-Mock) und `ConfigHandler`.
+    - Alle 4 Tests bestanden (`4/4 PASS, Exit-Code: 0`).
+  - **Verifikation & Berichte:**
+    - Gesamte Test-Suite: 16 Tests (12 Backend + 4 Python CLI) vollständig `PASSED` ([`Docs/unit_test_report.md`](file:///home/sympa/Dev/data_sync/Docs/unit_test_report.md)).
+    - Sicherheits-Audit: 0 Befunde, Whitelist eingehalten ([`Docs/security_audit_report.md`](file:///home/sympa/Dev/data_sync/Docs/security_audit_report.md)).
+- **Architekturentscheidungen (Warum):**
+  - **Nahtlose Rückwärtskompatibilität:** Bestehende `config.json`-Dateien mit `api_base_url` bleiben uneingeschränkt funktionsfähig; der Client leitet Endpunkte transparent an den neuen REST-Server weiter.
+  - **Sichere Token-Ablage:** Nur das zeitlich begrenzte Sitzungs-Token wird persistiert, niemals das Klartext-Passwort des Benutzers.
+- **Offene Punkte / Nächste Schritte:**
+  - Anpassung der Flutter-App (`data_sync.FLUTTER`) an die neue REST-API mit Multi-User-Login und getrennten Verzeichnissen.
+  - Erweiterung der App um Administrations-Funktionen (User-Management, Sync-Status) und Web-Dashboard.
+
+---
+
 ## [2026-10-18 15:10] – Web-API Rework: Vollständige Umstellung auf SQLite & Multi-User-Architektur (Branch: rework-webapi)
 
 - **Durchgeführte Änderungen:**

@@ -161,7 +161,7 @@ class DataSyncSecurityScanner:
         std_modules = {
             "os", "sys", "hashlib", "sqlite3", "json", "argparse", "pathlib",
             "datetime", "abc", "typing", "math", "re", "time", "unittest",
-            "dataclasses", "enum", "shutil", "tempfile", "copy"
+            "dataclasses", "enum", "shutil", "tempfile", "copy", "getpass"
         }
         for py_file in (self.root_dir / "data_sync.CLI" / "src").rglob("*.py"):
             rel_path = str(py_file.relative_to(self.root_dir))

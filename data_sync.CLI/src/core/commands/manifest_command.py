@@ -43,7 +43,11 @@ class ManifestCommand(BaseCommand):
 
             print(f"Using API base URL: {api_base_url}")
 
-            # SSL-Verifikation aus Konfiguration laden (Default: True für Sicherheit)
+            # Bearer-Token und SSL-Verifikation aus Konfiguration laden
+            sBuffyToken = config_handler.get_config("auth_token")
+            if not sBuffyToken:
+                print("⚠️  Warnung: Nicht angemeldet! Bitte führe zuerst 'python3 main.py --login' aus.")
+
             verify_ssl = config_handler.get_config("verify_ssl")
             if verify_ssl is None:
                 verify_ssl = True  # Default: SSL-Verifikation aktiviert
@@ -51,8 +55,8 @@ class ManifestCommand(BaseCommand):
             if verify_ssl is False:
                 print("Warning: SSL verification is disabled.")
 
-            # API Client mit SSL-Einstellung initialisieren
-            api_client = ApiClient(api_base_url, verify_ssl)
+            # API Client mit Token und SSL-Einstellung initialisieren
+            api_client = ApiClient(api_base_url, verify_ssl=verify_ssl, auth_token=sBuffyToken)
 
             if not api_client:
                 raise ValueError("Failed to initialize API client.")

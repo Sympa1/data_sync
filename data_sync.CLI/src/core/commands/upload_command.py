@@ -22,6 +22,7 @@ class UploadCommand(BaseCommand):
         config_handler = ConfigHandler()
         sync_path = config_handler.get_config("sync_path")
         api_base_url = config_handler.get_config("api_base_url")
+        sBuffyToken = config_handler.get_config("auth_token")
         verify_ssl = config_handler.get_config("verify_ssl")
         if verify_ssl is None:
             verify_ssl = True  # Default: SSL-Verifikation aktiviert
@@ -29,7 +30,7 @@ class UploadCommand(BaseCommand):
         if verify_ssl is False:
             print("Warning: SSL verification is disabled.")
 
-        api_client = ApiClient(api_base_url, verify_ssl)
+        api_client = ApiClient(api_base_url, verify_ssl=verify_ssl, auth_token=sBuffyToken)
         print(f"Using API base URL: {api_base_url}")
 
         file_upload_success = []
