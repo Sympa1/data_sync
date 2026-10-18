@@ -1,16 +1,18 @@
-using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 using data_sync.API.DTOs;
 using data_sync.API.Models;
 using data_sync.API.Services;
-using Mysqlx.Crud;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace data_sync.API.Controllers;
 
-// TODO: Wie mache ich das mit dem löschen von Dateien?
-
-// TODO: Metadaten in der DB des Clients speichern (z.B. Dateigröße, Hash-Wert, Änderungsdatum). Das soll beim
-//  Upload passieren.
-
+/// <summary>
+/// REST-Controller für die Datei-Synchronisation.
+/// Durch [Authorize] geschützt – jeder Benutzer erhält ein isoliertes Verzeichnis unter uploads/{userId}/.
+/// Beinhaltet vollständigen Schutz gegen Path Traversal und Directory Traversal Angriffe.
+/// </summary>
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class SyncController : ControllerBase
@@ -18,175 +20,250 @@ public class SyncController : ControllerBase
     private readonly GetFilesToSyncService _filesToSyncService;
     private readonly UpdateMetadataService _updateMetadataService;
     private readonly SyncStateService _syncStateService;
-    private readonly IWebHostEnvironment _envirement;
-    
-    /// <summary>
-    /// Konstruktor für SyncController, der Services injiziert.
-    /// </summary>
+    private readonly IWebHostEnvironment _environment;
+
     public SyncController(
-        GetFilesToSyncService filesToSyncService, 
+        GetFilesToSyncService filesToSyncService,
         UpdateMetadataService updateMetadataService,
         SyncStateService syncStateService,
-        IWebHostEnvironment envirement)
+        IWebHostEnvironment environment)
     {
         _filesToSyncService = filesToSyncService;
         _updateMetadataService = updateMetadataService;
         _syncStateService = syncStateService;
-        _envirement = envirement;
+        _environment = environment;
     }
-    
+
     /// <summary>
-    /// Gibt dem Client die Liste der Dateien zurück, mit dem Status/Zustand der betreffenden Dateien.
+    /// Liest die ID des authentifizierten Benutzers aus dem Token aus.
     /// </summary>
-    /// <param name="manifests"></param>
-    /// <returns></returns>
+    private int GetCurrentUserId()
+    {
+        var sBuffyClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(sBuffyClaim) || !int.TryParse(sBuffyClaim, out int iBuffyUserId))
+        {
+            throw new UnauthorizedAccessException("Ungültiger Benutzerkontext im Token.");
+        }
+        return iBuffyUserId;
+    }
+
+    /// <summary>
+    /// Ermittelt den sicheren absoluten Pfad im isolierten Benutzerverzeichnis.
+    /// Verhindert Directory/Path Traversal (z.B. '../', '..\\') durch strikte Begrenzungsprüfung.
+    /// </summary>
+    private string GetSecureUserFilePath(int iBuffyUserId, string sBuffyRelativePath)
+    {
+        if (string.IsNullOrWhiteSpace(sBuffyRelativePath))
+        {
+            throw new ArgumentException("Dateipfad darf nicht leer sein.", nameof(sBuffyRelativePath));
+        }
+
+        // Pfad normalisieren: Backslashes zu Forward-Slashes, führende Slashes entfernen
+        string sBuffyClean = sBuffyRelativePath.Replace('\\', '/').TrimStart('/');
+
+        // Benutzer-Wurzelverzeichnis: uploads/{userId}
+        string sBuffyUserDir = Path.GetFullPath(Path.Combine(_environment.ContentRootPath, "uploads", iBuffyUserId.ToString()));
+
+        // Absoluter Zielpfad
+        string sBuffyFullPath = Path.GetFullPath(Path.Combine(sBuffyUserDir, sBuffyClean));
+
+        // Sicherheitsprüfung: Zielpfad muss zwingend innerhalb des Benutzerverzeichnisses liegen
+        string sBuffyBoundary = sBuffyUserDir.EndsWith(Path.DirectorySeparatorChar)
+            ? sBuffyUserDir
+            : sBuffyUserDir + Path.DirectorySeparatorChar;
+
+        if (!sBuffyFullPath.StartsWith(sBuffyBoundary, StringComparison.Ordinal))
+        {
+            throw new UnauthorizedAccessException("Path-Traversal-Angriff erkannt: Zugriff außerhalb des Benutzerverzeichnisses verweigert.");
+        }
+
+        return sBuffyFullPath;
+    }
+
+    /// <summary>
+    /// Gleicht das vom Client gesendete Manifest ab und gibt die Synchronisationsaktionen zurück.
+    /// </summary>
     [HttpPost("manifest")]
     public async Task<IActionResult> PostManifestByClient([FromBody] List<ManifestEntryDto> manifests)
     {
-        // Leeres Manifest ist OK - neuer Client ohne Dateien
         if (manifests == null)
-            return BadRequest("Manifest missing or invalid.");
-        
-        var filesToSync = await _filesToSyncService.GetFilesToSync(manifests);
-        
+        {
+            return BadRequest(new { message = "Manifest fehlt oder ist ungültig." });
+        }
+
+        int iBuffyUserId = GetCurrentUserId();
+        var filesToSync = await _filesToSyncService.GetFilesToSync(iBuffyUserId, manifests);
+
         return Ok(filesToSync);
     }
-    
+
     /// <summary>
-    /// files und basePath sind die Keywords. basePath wird als Query-Parameter übergeben.
-    /// Es können mehrere Dateien gleichzeitig hochgeladen werden, aber sie müssen im selben Verzeichnis liegen.
+    /// Lädt eine Datei in das isolierte Benutzerverzeichnis hoch.
     /// </summary>
-    /// <param name="files">Die Datei(en) die übertragen werden</param>
-    /// <param name="basePath">Der Dateipfad für die Datei(en)</param>
-    /// <returns></returns>
     [HttpPost("upload")]
     public async Task<IActionResult> UploadFile(IFormFile file, [FromQuery] string basePath = "")
     {
-        // Eine leere Datei ist fuer den Dateisync ein gueltiger Zustand.
         if (file == null)
-            return BadRequest("No file uploaded.");
+        {
+            return BadRequest(new { message = "Keine Datei hochgeladen." });
+        }
 
         if (string.IsNullOrWhiteSpace(file.FileName))
-            return BadRequest("Uploaded file name is missing.");
+        {
+            return BadRequest(new { message = "Dateiname fehlt." });
+        }
 
-        var uploadPath = Path.Combine("uploads", basePath);
-        
-        if (!Directory.Exists(uploadPath))
-            Directory.CreateDirectory(uploadPath);
+        int iBuffyUserId = GetCurrentUserId();
+        string sBuffySafeFileName = Path.GetFileName(file.FileName);
+        string sBuffyRelativeDir = string.IsNullOrWhiteSpace(basePath) ? "" : basePath.TrimStart('/', '\\');
+        string sBuffyRelativeFile = string.IsNullOrEmpty(sBuffyRelativeDir)
+            ? sBuffySafeFileName
+            : Path.Combine(sBuffyRelativeDir, sBuffySafeFileName).Replace('\\', '/');
 
-        var fileName = Path.GetFileName(file.FileName);
-        var fullPath = Path.Combine(uploadPath, fileName);
+        string sBuffyFullPath;
+        try
+        {
+            sBuffyFullPath = GetSecureUserFilePath(iBuffyUserId, sBuffyRelativeFile);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
 
-        // Datei speichern
-        using (var stream = System.IO.File.Create(fullPath))
+        // Sicherstellen, dass Zielordner existiert
+        var sBuffyTargetDir = Path.GetDirectoryName(sBuffyFullPath);
+        if (!string.IsNullOrEmpty(sBuffyTargetDir) && !Directory.Exists(sBuffyTargetDir))
+        {
+            Directory.CreateDirectory(sBuffyTargetDir);
+        }
+
+        // Datei auf Server schreiben
+        await using (var stream = System.IO.File.Create(sBuffyFullPath))
         {
             await file.CopyToAsync(stream);
         }
 
-        // Server berechnet Metadaten
-        var hashValue = UtilsService.CalculateFileHash(fullPath);
-        var fileInfo = new FileInfo(fullPath);
-        
-        // Relativer Pfad für DB (OHNE "uploads/")
-        var relativeFilePath = Path.Combine(basePath, fileName);
+        // Metadaten berechnen
+        string sBuffyHash = UtilsService.CalculateFileHash(sBuffyFullPath);
+        var fileInfo = new FileInfo(sBuffyFullPath);
 
-        // DB aktualisieren mit relativem Pfad
-        SyncFile metaData = new SyncFile
+        var metaData = new SyncFile
         {
-            FileName = fileName,
-            FilePath = relativeFilePath,  // ✅ Relativer Pfad ohne "uploads/"
+            FileName = sBuffySafeFileName,
+            FilePath = sBuffyRelativeFile,
             FileSize = fileInfo.Length,
-            HashValue = hashValue,
+            HashValue = sBuffyHash,
             FileState = FileState.Modified
         };
-        
-        await _updateMetadataService.UpdateMetadataAsync(metaData);
-      
-        // LastSyncState aktualisieren nach erfolgreichem Upload
-        await _syncStateService.UpdateSyncStateAsync(relativeFilePath, hashValue, fileInfo.Length);
 
-        return Ok(new {
+        // Metadaten und LastSyncState in SQLite für diesen Benutzer aktualisieren
+        await _updateMetadataService.UpdateMetadataAsync(iBuffyUserId, metaData);
+        await _syncStateService.UpdateSyncStateAsync(iBuffyUserId, sBuffyRelativeFile, sBuffyHash, fileInfo.Length);
+
+        return Ok(new
+        {
             status = "success",
-            fileName = fileName,
-            hash = hashValue
+            fileName = sBuffySafeFileName,
+            filePath = sBuffyRelativeFile,
+            hash = sBuffyHash
         });
-
     }
 
-    // TODO: Eine Base64 kodierte JSON Datei wäre auch eine Möglichkeit, Dateien zu übertragen. Damit könnte man
-    //  mehrere Dateien in einem Request übertragen.
     /// <summary>
-    /// Download einer Datei anhand des Dateipfads des Servers. Der Pfad wird als Query-Parameter übergeben.
-    /// Den Serverdateipfad erhält man als Response beim API Call "Manifest".
+    /// Lädt eine Datei aus dem isolierten Benutzerverzeichnis herunter.
     /// </summary>
-    /// <param name="fileName"></param>
-    /// <returns></returns>
     [HttpGet("download")]
     public async Task<IActionResult> DownloadFile([FromQuery] string filePath)
     {
-        string cleanFilePath = filePath.TrimStart('/', '\\');
-        string fullPath = Path.Combine(_envirement.ContentRootPath, "uploads", cleanFilePath);
-
-        if (!System.IO.File.Exists(fullPath))
+        if (string.IsNullOrWhiteSpace(filePath))
         {
-            return NotFound("File not found.");
+            return BadRequest(new { message = "Dateipfad ist erforderlich." });
+        }
+
+        int iBuffyUserId = GetCurrentUserId();
+        string sBuffyFullPath;
+        try
+        {
+            sBuffyFullPath = GetSecureUserFilePath(iBuffyUserId, filePath);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+
+        if (!System.IO.File.Exists(sBuffyFullPath))
+        {
+            return NotFound(new { message = "Datei auf dem Server nicht gefunden." });
         }
 
         var memory = new MemoryStream();
-        using (var stream = new FileStream(fullPath, FileMode.Open))
+        await using (var stream = new FileStream(sBuffyFullPath, FileMode.Open, FileAccess.Read))
         {
             await stream.CopyToAsync(memory);
         }
         memory.Position = 0;
 
-        // LastSyncState aktualisieren nach erfolgreichem Download
-        var hashValue = UtilsService.CalculateFileHash(fullPath);
-        var fileInfo = new FileInfo(fullPath);
-        await _syncStateService.UpdateSyncStateAsync(cleanFilePath, hashValue, fileInfo.Length);
+        string sBuffyRelative = filePath.TrimStart('/', '\\').Replace('\\', '/');
+        string sBuffyHash = UtilsService.CalculateFileHash(sBuffyFullPath);
+        var fileInfo = new FileInfo(sBuffyFullPath);
 
-        string contentType = "application/octet-stream";
-        return File(memory, contentType, fullPath);
+        await _syncStateService.UpdateSyncStateAsync(iBuffyUserId, sBuffyRelative, sBuffyHash, fileInfo.Length);
+
+        return File(memory, "application/octet-stream", Path.GetFileName(sBuffyFullPath));
     }
 
+    /// <summary>
+    /// Löscht eine Datei aus dem Speicher und markiert sie in der SQLite-Datenbank als gelöscht.
+    /// </summary>
     [HttpDelete("delete")]
     public async Task<IActionResult> DeleteFile([FromQuery] string filePath)
     {
-        if (string.IsNullOrEmpty(filePath))
+        if (string.IsNullOrWhiteSpace(filePath))
         {
-            return BadRequest("File path is required.");
+            return BadRequest(new { message = "Dateipfad ist erforderlich." });
         }
-        
-        string cleanFilePath = filePath.TrimStart('/', '\\');
-        string fullPath = Path.Combine(_envirement.ContentRootPath, "uploads", cleanFilePath); // Pfad zur Datei im Upload-Verzeichnis
-        
-        if (!System.IO.File.Exists(fullPath))
-        {
-            return NotFound("File not found.");
-        }
-        
+
+        int iBuffyUserId = GetCurrentUserId();
+        string sBuffyFullPath;
         try
         {
-            System.IO.File.Delete(fullPath); // Löscht die Datei vom Server
-            
-            // LastSyncState löschen (Datei ist beidseitig gelöscht)
-            await _syncStateService.DeleteSyncStateAsync(cleanFilePath);
-            
-            // SyncFiles auf 'deleted' setzen (damit andere Clients wissen, dass gelöscht wurde)
+            sBuffyFullPath = GetSecureUserFilePath(iBuffyUserId, filePath);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+
+        string sBuffyRelative = filePath.TrimStart('/', '\\').Replace('\\', '/');
+
+        if (!System.IO.File.Exists(sBuffyFullPath))
+        {
+            return NotFound(new { message = "Datei nicht gefunden." });
+        }
+
+        try
+        {
+            System.IO.File.Delete(sBuffyFullPath);
+
+            // LastSyncState bereinigen
+            await _syncStateService.DeleteSyncStateAsync(iBuffyUserId, sBuffyRelative);
+
+            // Datei-Status auf 'Deleted' setzen, damit andere Clients die Löschung synchronisieren
             var deletedFile = new SyncFile
             {
-                FileName = Path.GetFileName(cleanFilePath),
-                FilePath = cleanFilePath,
+                FileName = Path.GetFileName(sBuffyRelative),
+                FilePath = sBuffyRelative,
                 FileSize = 0,
                 HashValue = string.Empty,
                 FileState = FileState.Deleted
             };
-            await _updateMetadataService.UpdateMetadataAsync(deletedFile);
-            
-            return Ok(new { status = "success", message = "File deleted successfully." });
+            await _updateMetadataService.UpdateMetadataAsync(iBuffyUserId, deletedFile);
+
+            return Ok(new { status = "success", message = "Datei erfolgreich gelöscht." });
         }
         catch (Exception ex)
         {
-            return StatusCode(500, $"Error deleting file: {ex.Message}");
+            return StatusCode(500, new { message = $"Fehler beim Löschen der Datei: {ex.Message}" });
         }
     }
 }

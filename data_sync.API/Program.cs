@@ -1,7 +1,8 @@
 using System.Net;
+using data_sync.API.Authentication;
 using data_sync.API.Services;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.HttpOverrides;
-//using data_sync.API.Tests;
 
 static void ConfigureEndpoint(Microsoft.AspNetCore.Server.Kestrel.Core.KestrelServerOptions options, string url, bool useHttps)
 {
@@ -37,13 +38,8 @@ static void ConfigureEndpoint(Microsoft.AspNetCore.Server.Kestrel.Core.KestrelSe
     options.ListenAnyIP(port, ConfigureListenOptions);
 }
 
-// .env einmalig beim Start laden via EnvLoadeService (sucht Projektstamm).
+// .env beim Start laden via EnvLoadeService
 EnvLoadeService.LoadDotEnv();
-
-// Testmodus-Flag
-//bool testMode = true;
-bool testMode = false;
-
 
 var builder = WebApplication.CreateBuilder(args);
 bool enableHttpsEndpoint = builder.Configuration.GetValue("EnableHttpsEndpoint", builder.Environment.IsDevelopment());
@@ -51,7 +47,7 @@ bool enableHttpsRedirection = builder.Configuration.GetValue("EnableHttpsRedirec
 
 builder.WebHost.ConfigureKestrel(options =>
 {
-    // Deaktiviert die minimale Datenrate fuer eingehende Request-Bodies.
+    // Deaktiviert die minimale Datenrate für große Datei-Uploads
     options.Limits.MinRequestBodyDataRate = null;
 
     var httpUrl = builder.Configuration["ServerEndpoints:Http:Url"] ?? "http://0.0.0.0:5000";
@@ -60,7 +56,6 @@ builder.WebHost.ConfigureKestrel(options =>
     if (enableHttpsEndpoint)
     {
         var httpsUrl = builder.Configuration["ServerEndpoints:Https:Url"];
-
         if (!string.IsNullOrWhiteSpace(httpsUrl))
         {
             ConfigureEndpoint(options, httpsUrl, useHttps: true);
@@ -68,9 +63,8 @@ builder.WebHost.ConfigureKestrel(options =>
     }
 });
 
-// Add services to the container.
+// JSON-Deserialisierung mit PascalCase konfigurieren
 builder.Services.AddControllers()
-    // JSON-Deserialisierung: PascalCase (statt default camelCase) akzeptieren
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.PropertyNamingPolicy = null;
@@ -78,74 +72,61 @@ builder.Services.AddControllers()
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
-    // Caddy setzt diese Header, damit ASP.NET das urspruengliche HTTPS-Schema kennt.
+    // Forwarded Headers von Caddy / Reverse-Proxy akzeptieren
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
-
-    // Im Compose-Netz bekommt der Proxy eine dynamische interne IP.
     options.KnownIPNetworks.Clear();
     options.KnownProxies.Clear();
 });
 
-if (testMode)
-{
-    //builder.Services.AddScoped<TestService>();
-}
-
-// NOTE: Damit die Ressourcen wieder freigegeben werden, wenn der Scope endet, muss IDisposable implementiert sein.
-// Registriere GetFilesToSyncService als Scoped (mit automatischem Dispose).
+// SQLite- und Geschäftslogik-Services registrieren (Scoped)
+builder.Services.AddScoped<SqliteService>();
+builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<GetFilesToSyncService>();
-
-// Registriere MariaDbService als Scoped (wird pro Request neu erstellt und automatisch disposed)
-builder.Services.AddScoped<MariaDbService>();
-
 builder.Services.AddScoped<UpdateMetadataService>();
-
-// Registriere SyncStateService für LastSyncState-Verwaltung
 builder.Services.AddScoped<SyncStateService>();
+
+// Schlanke Bearer-Token-Authentifizierung über SQLite konfigurieren (ohne externe JWT-Bibliothek)
+builder.Services.AddAuthentication("BearerToken")
+    .AddScheme<AuthenticationSchemeOptions, TokenAuthenticationHandler>("BearerToken", null);
+
+builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
-// DB-Startup-Checks direkt instanziieren (nicht aus DI)
-FileLogService log = new FileLogService("Db-Startup.log");
+// SQLite-Startup-Checks und automatische Schema-Initialisierung durchführen
+FileLogService log = new FileLogService("sqlite_startup.log");
+try
+{
+    await using var scope = app.Services.CreateAsyncScope();
+    var sqliteService = scope.ServiceProvider.GetRequiredService<SqliteService>();
 
-    try
-    {
-        var scope = app.Services.CreateScope();
-        var mariaDbService = scope.ServiceProvider.GetRequiredService<MariaDbService>();
-        
-        await using (var dbStartup = new DbStartupCheckService(mariaDbService))
-        {
-            await dbStartup.CheckDatabaseConnectionAsync();
-            await dbStartup.CheckDatabaseTablesAsync();
-        }
-    }
-    catch (Exception ex)
-    {
-        log.WriteToLog($"DB-Startup-Fehler: {ex}", "DBStartup");
-        Console.WriteLine($"DB-Startup-Fehler: {ex.Message}"); 
-    }
+    await using var dbStartup = new DbStartupCheckService(sqliteService);
+    await dbStartup.CheckDatabaseConnectionAsync();
+    await dbStartup.CheckDatabaseTablesAsync();
+}
+catch (Exception ex)
+{
+    log.WriteToLog($"SQLite-Startup-Fehler: {ex}", "DBStartup");
+    Console.WriteLine($"SQLite-Startup-Fehler: {ex.Message}");
+}
 
-// Testmodus prüfen (Programmargumente)
-// if (testMode)
-// {
-//     using (var scope = app.Services.CreateScope())
-//     {
-//         var testService = scope.ServiceProvider.GetRequiredService<TestService>();
-//         // Hier können verschiedene Testmethoden aufgerufen werden
-//         testService.ChoiceTest(1); // Beispiel: Testvariante 1 ausführen
-//     }
-// }
-
-// Muss vor weiterer Middleware laufen, damit Request.Scheme hinter Caddy korrekt auf https steht.
+// Reverse-Proxy Header verarbeiten
 app.UseForwardedHeaders();
 
-// HTTPS-Umleitung bleibt konfigurierbar, damit Container ohne Zertifikat sauber per HTTP laufen koennen.
 if (enableHttpsRedirection)
 {
     app.UseHttpsRedirection();
 }
 
+// Authentifizierung VOR Autorisierung ausführen
+app.UseAuthentication();
 app.UseAuthorization();
-app.MapControllers();
+
+// Wenn Argument --test übergeben wurde, führe die Test-Suite aus und beende
+if (args.Contains("--test"))
+{
+    int testExitCode = await data_sync.API.Tests.ApiTestSuite.RunAllTestsAsync(app.Services);
+    Environment.Exit(testExitCode);
+}
 
 app.Run();

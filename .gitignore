@@ -42,3 +42,6 @@ caddy-root.crt
 data_sync.CLI/src/error.log
 upload/
 data_sync.API/uploads/
+*.log
+data/
+data_sync.API/data/

@@ -11,19 +11,15 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       EnableHttpsEndpoint: "false"
       EnableHttpsRedirection: "false"
-      # Kestrel lauscht nur intern, Caddy uebernimmt HTTPS nach aussen.
+      # Kestrel lauscht intern auf Port 8080, Caddy übernimmt HTTPS nach außen.
       ServerEndpoints__Http__Url: http://0.0.0.0:8080
-      DB_HOST: ${DB_HOST}
-      DB_PORT: ${DB_PORT:-3306}
-      DB_NAME: ${DB_NAME}
-      DB_USER: ${DB_USER}
-      DB_PASSWORD: ${DB_PASSWORD}
+      DB_PATH: /app/data/data_sync.db
     volumes:
       - ./uploads:/app/uploads
+      - ./data:/app/data
     restart: unless-stopped
     networks:
       - proxy-network
-      - database-network
 
   caddy:
     container_name: data-sync-caddy
@@ -31,9 +27,9 @@ services:
     depends_on:
       - api
     ports:
-      # Nicht-Standard-Port fuer HTTP im lokalen Netz.
+      # HTTP-Port im lokalen Netz
       - "${CADDY_HTTP_PORT:-8088}:8080"
-      # Nicht-Standard-Port fuer HTTPS im lokalen Netz.
+      # HTTPS-Port im lokalen Netz
       - "${CADDY_HTTPS_PORT:-8443}:8443"
     environment:
       # Diese IP muss zur LAN-IP des Docker-Hosts passen.
@@ -52,6 +48,3 @@ volumes:
 
 networks:
   proxy-network:
-  database-network:
-    external: true
-    name: ${DB_NETWORK_NAME}

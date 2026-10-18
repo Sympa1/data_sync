@@ -9,23 +9,23 @@ namespace data_sync.API.DTOs;
 public class ManifestEntryDto
 {
     [JsonPropertyName("fileName")]
-    public string FileName { get; set; }
-    
+    public string FileName { get; set; } = string.Empty;
+
     [JsonPropertyName("relativePath")]
-    public string FilePath { get; set; } // kein absoluter Client-Pfad
-    
+    public string FilePath { get; set; } = string.Empty; // kein absoluter Client-Pfad
+
     [JsonPropertyName("size")]
     public long FileSize { get; set; }
-    
+
     [JsonPropertyName("sha256")]
-    public string Hashvalue { get; set; }
-    
+    public string Hashvalue { get; set; } = string.Empty;
+
     [JsonPropertyName("createdAt")]
     public DateTime CreatedAt { get; set; }
-    
+
     [JsonPropertyName("lastModified")]
     public DateTime LastModified { get; set; }
-    
+
     // FileChangeState-Enum wird automatisch konvertiert (case-insensitive in .NET 5+)
     [JsonPropertyName("changeState")]
     public FileChangeState FileState { get; set; }
@@ -37,33 +37,33 @@ public class ManifestEntryDto
 public class ManifestResponseDto
 {
     [JsonPropertyName("fileName")]
-    public string FileName { get; set; }
-    
+    public string FileName { get; set; } = string.Empty;
+
     [JsonPropertyName("relativePath")]
-    public string FilePath { get; set; } // kein absoluter Client-Pfad
-    
+    public string FilePath { get; set; } = string.Empty; // kein absoluter Client-Pfad
+
     [JsonPropertyName("size")]
     public long FileSize { get; set; }
-    
+
     [JsonPropertyName("sha256")]
-    public string Hashvalue { get; set; }
-    
+    public string Hashvalue { get; set; } = string.Empty;
+
     [JsonPropertyName("createdAt")]
     public DateTime CreatedAt { get; set; }
-    
+
     [JsonPropertyName("lastModified")]
     public DateTime LastModified { get; set; }
-    
+
     // FileChangeState-Enum wird automatisch konvertiert (case-insensitive in .NET 5+)
     [JsonPropertyName("changeState")]
     public FileChangeState FileState { get; set; }
-    
+
     [JsonPropertyName("toUpload")]
     public bool ToUpload { get; set; }
-    
+
     [JsonPropertyName("toDelete")]
     public bool ToDelet { get; set; }
-    
+
     [JsonPropertyName("toDownload")]
     public bool ToDownload { get; set; }
 }

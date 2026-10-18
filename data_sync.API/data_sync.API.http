@@ -1,6 +1,69 @@
-@data_sync_API_HostAddress = http://localhost:5008
+@baseUrl = http://localhost:5000
 
-GET {{data_sync_API_HostAddress}}/weatherforecast/
-Accept: application/json
+### 1. Benutzer registrieren
+# @name register
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
 
-###
+{
+  "username": "tester",
+  "password": "Password123!"
+}
+
+### 2. Benutzer anmelden (Login)
+# @name login
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "tester",
+  "password": "Password123!"
+}
+
+### Token aus Login-Response speichern
+@authToken = {{login.response.body.token}}
+
+### 3. Eigenes Profil abrufen
+GET {{baseUrl}}/api/auth/me
+Authorization: Bearer {{authToken}}
+
+### 4. Manifest abgleichen (Sync-Plan)
+POST {{baseUrl}}/api/sync/manifest
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+[
+  {
+    "fileName": "test.txt",
+    "relativePath": "test.txt",
+    "size": 13,
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "createdAt": "2026-10-18T10:00:00Z",
+    "lastModified": "2026-10-18T10:00:00Z",
+    "changeState": "New"
+  }
+]
+
+### 5. Datei hochladen
+POST {{baseUrl}}/api/sync/upload
+Authorization: Bearer {{authToken}}
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="file"; filename="test.txt"
+Content-Type: text/plain
+
+Hello SQLite!
+--boundary--
+
+### 6. Datei herunterladen
+GET {{baseUrl}}/api/sync/download?filePath=test.txt
+Authorization: Bearer {{authToken}}
+
+### 7. Datei löschen
+DELETE {{baseUrl}}/api/sync/delete?filePath=test.txt
+Authorization: Bearer {{authToken}}
+
+### 8. Abmelden (Logout)
+POST {{baseUrl}}/api/auth/logout
+Authorization: Bearer {{authToken}}

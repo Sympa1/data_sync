@@ -1,58 +1,60 @@
 namespace data_sync.API.Services;
 
 /// <summary>
-/// Verwaltet den letzten bekannten Synchronisationsstand einer Datei.
+/// Verwaltet den letzten bekannten Synchronisationsstand einer Datei je Benutzer in SQLite.
 /// </summary>
 public class SyncStateService
 {
-    private readonly MariaDbService _mariaDbService;
+    private readonly SqliteService _sqliteService;
 
-    public SyncStateService(MariaDbService mariaDbService)
+    public SyncStateService(SqliteService sqliteService)
     {
-        _mariaDbService = mariaDbService;
+        _sqliteService = sqliteService;
     }
 
     /// <summary>
-    /// Legt den letzten Synchronisationsstand für eine Datei an oder aktualisiert ihn.
+    /// Legt den letzten Synchronisationsstand für eine Datei und einen Benutzer an oder aktualisiert ihn via SQLite UPSERT.
     /// </summary>
-    public async Task UpdateSyncStateAsync(string filePath, string hashValue, long fileSize)
+    public async Task UpdateSyncStateAsync(int iBuffyUserId, string sBuffyFilePath, string sBuffyHash, long fileSize)
     {
-        await using var connection = await _mariaDbService.OpenConnectionAsync();
+        await using var connection = await _sqliteService.OpenConnectionAsync();
         if (connection == null)
         {
-            throw new InvalidOperationException("MariaDB connection could not be established.");
+            throw new InvalidOperationException("SQLite-Verbindung konnte nicht hergestellt werden.");
         }
 
         await using var dbCommand = connection.CreateCommand();
         dbCommand.CommandText = @"
-            INSERT INTO LastSyncState (file_path, hash_value, file_size)
-            VALUES (@filePath, @hashValue, @fileSize)
-            ON DUPLICATE KEY UPDATE
-                hash_value = @hashValue,
-                file_size = @fileSize,
+            INSERT INTO LastSyncState (user_id, file_path, hash_value, file_size, last_synced_at)
+            VALUES (@userId, @filePath, @hashValue, @fileSize, CURRENT_TIMESTAMP)
+            ON CONFLICT(user_id, file_path) DO UPDATE SET
+                hash_value = excluded.hash_value,
+                file_size = excluded.file_size,
                 last_synced_at = CURRENT_TIMESTAMP;";
 
-        dbCommand.Parameters.AddWithValue("@filePath", filePath);
-        dbCommand.Parameters.AddWithValue("@hashValue", hashValue);
+        dbCommand.Parameters.AddWithValue("@userId", iBuffyUserId);
+        dbCommand.Parameters.AddWithValue("@filePath", sBuffyFilePath);
+        dbCommand.Parameters.AddWithValue("@hashValue", sBuffyHash);
         dbCommand.Parameters.AddWithValue("@fileSize", fileSize);
 
         await dbCommand.ExecuteNonQueryAsync();
     }
 
     /// <summary>
-    /// Entfernt den letzten Synchronisationsstand für eine Datei.
+    /// Entfernt den Synchronisationsstand für eine gelöschte Datei eines Benutzers.
     /// </summary>
-    public async Task DeleteSyncStateAsync(string filePath)
+    public async Task DeleteSyncStateAsync(int iBuffyUserId, string sBuffyFilePath)
     {
-        await using var connection = await _mariaDbService.OpenConnectionAsync();
+        await using var connection = await _sqliteService.OpenConnectionAsync();
         if (connection == null)
         {
-            throw new InvalidOperationException("MariaDB connection could not be established.");
+            throw new InvalidOperationException("SQLite-Verbindung konnte nicht hergestellt werden.");
         }
 
         await using var dbCommand = connection.CreateCommand();
-        dbCommand.CommandText = "DELETE FROM LastSyncState WHERE file_path = @filePath;";
-        dbCommand.Parameters.AddWithValue("@filePath", filePath);
+        dbCommand.CommandText = "DELETE FROM LastSyncState WHERE user_id = @userId AND file_path = @filePath;";
+        dbCommand.Parameters.AddWithValue("@userId", iBuffyUserId);
+        dbCommand.Parameters.AddWithValue("@filePath", sBuffyFilePath);
 
         await dbCommand.ExecuteNonQueryAsync();
     }

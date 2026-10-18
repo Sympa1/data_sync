@@ -11,7 +11,7 @@ public class SyncFile
     public string HashValue { get; set; } = string.Empty;
     public FileState FileState { get; set; } = FileState.Modified;
 
-    
+
     // Navigation Property
     public ICollection<SyncEvent> SyncEvents { get; set; } = new List<SyncEvent>();
 }

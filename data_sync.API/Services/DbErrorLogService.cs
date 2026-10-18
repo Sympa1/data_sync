@@ -1,49 +1,36 @@
 namespace data_sync.API.Services;
 
-
 /// <summary>
-/// Diese Klasse stellt eine Methode zum Protokollieren von Datenbankfehlern in der FehlerProtokoll-Tabelle bereit.
-/// Sie nutzt den MariaDbService per DI, um eine Verbindung zur Datenbank herzustellen.
+/// Protokolliert Datenbankfehler in der FehlerProtokoll-Tabelle von SQLite.
+/// Nutzt SqliteService per Dependency Injection.
 /// </summary>
 public class DbErrorLogService
 {
-    // Private, readonly Feld speichert die injizierte MariaDBService-Instanz
-    // '_' ist C#-Konvention für private Felder
-    private readonly MariaDbService _dbService;
+    private readonly SqliteService _dbService;
 
-    // Konstruktor mit Parameter: Der DI-Container ruft das auf und übergibt MariaDbService
-    // So wird die Abhängigkeit "injiziert" statt hart codiert
-    public DbErrorLogService(MariaDbService mariaDbService)
+    public DbErrorLogService(SqliteService sqliteService)
     {
-        // Speichert die Referenz für die ganze Klassenlebensdauer
-        _dbService = mariaDbService;
+        _dbService = sqliteService;
     }
+
     /// <summary>
     /// Schreibt eine aussagekräftige Fehlermeldung in die FehlerProtokoll-Tabelle.
-    /// Dazu wird ex. Message und ex. StackTrace genutzt.
     /// </summary>
-    /// <param name="ex"></param>
-    /// <param name="contextInfo"></param>
-    public async Task LogDbErrorAsync(Exception ex, string contextInfo)
+    public async Task LogDbErrorAsync(Exception ex, string contextInfo, int? iBuffyUserId = null)
     {
-        await using (var connection = await _dbService.OpenConnectionAsync())
+        await using var connection = await _dbService.OpenConnectionAsync();
+        if (connection != null)
         {
-            if (connection != null)
-            {
-                await using (var dbCommand = connection.CreateCommand())
-                {
-                    // ex. Message: Gibt die kurze Fehlermeldung als Text zurück
-                    // ex. StackTrace: Zeigt die Call-Stack-Information - welche Methoden aufgerufen wurden
-                    var fehlerBeschreibung = $"Fehler im Kontext '{contextInfo}': {ex.Message}\nStackTrace: {ex.StackTrace}";
-                    dbCommand.CommandText = @"
-                        INSERT INTO FehlerProtokoll (fehler_beschreibung)
-                        VALUES (@fehlerBeschreibung);";
-                    
-                    dbCommand.Parameters.AddWithValue("@fehlerBeschreibung", fehlerBeschreibung);
-                    
-                    await dbCommand.ExecuteNonQueryAsync();
-                }
-            }
+            await using var dbCommand = connection.CreateCommand();
+            var sBuffyFehlerBeschreibung = $"Fehler im Kontext '{contextInfo}': {ex.Message}\nStackTrace: {ex.StackTrace}";
+            dbCommand.CommandText = @"
+                INSERT INTO FehlerProtokoll (user_id, fehler_beschreibung, fehler_timestamp)
+                VALUES (@userId, @fehlerBeschreibung, CURRENT_TIMESTAMP);";
+
+            dbCommand.Parameters.AddWithValue("@userId", (object?)iBuffyUserId ?? DBNull.Value);
+            dbCommand.Parameters.AddWithValue("@fehlerBeschreibung", sBuffyFehlerBeschreibung);
+
+            await dbCommand.ExecuteNonQueryAsync();
         }
     }
 }

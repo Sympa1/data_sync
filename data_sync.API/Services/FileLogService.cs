@@ -10,7 +10,7 @@ public class FileLogService
 {
 
     private string _LogFilePath;
-    
+
     /// <summary>
     /// Die Konstruktor-Methode nimmt den Namen des Logfiles als Parameter entgehen.
     /// </summary>
@@ -19,7 +19,7 @@ public class FileLogService
     {
         // Platziert das Logfile im Stammverzeichnis des Projekts ../bin/Debug/netX.X/.
         //this._LogFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, logFileName);
-        
+
         // Aktuelles Arbeitsverzeichnis --> ../bin/Debug/netX.X/
         string currentDir = Environment.CurrentDirectory;
 
@@ -33,7 +33,7 @@ public class FileLogService
     /// </summary>
     /// <param name="message"></param>
     /// <param name="headline"></param>
-    public void WriteToLog( string message, string headline = "Error")
+    public void WriteToLog(string message, string headline = "Error")
     {
         DateTime timestamp = DateTime.Now;
         using (var writer = new StreamWriter(_LogFilePath, append: true))
